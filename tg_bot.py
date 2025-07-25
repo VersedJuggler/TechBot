@@ -1,19 +1,8 @@
 # tg_bot.py
-
-"""Телеграм-бот, принимающий Excel-файл (.xlsx) со списком товаров и
-распределяющий товары по категориям и подкатегориям.
-
-Перед запуском:
-1. Создайте в Telegram нового бота у @BotFather и скопируйте токен.
-2. Поместите токен в переменную ``TOKEN`` ниже или передайте через переменную
-   окружения ``TG_BOT_TOKEN``.
-3. Установите зависимости: ``pip install -r requirements.txt``.
-4. Запустите: ``python tg_bot.py``.
-"""
-
 import os
 import tempfile
 import json
+import html
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
@@ -28,30 +17,43 @@ from telegram.ext import (
     CallbackQueryHandler,
     filters,
 )
+import shutil
 
 # ---------------------------------------------------------------------------
 # Замените значение переменной на ваш токен или установите переменную
 # окружения TG_BOT_TOKEN, чтобы токен подтянулся автоматически.
 # ---------------------------------------------------------------------------
 TOKEN: str | None = os.getenv("TG_BOT_TOKEN")
-# ID администратора, которому разрешено отправлять файлы
-ADMIN_USER_ID = 6413686861
+# ID администраторов, которым разрешено отправлять файлы и выполнять привилегированные команды
+ADMIN_USER_IDS: set[int] = {6413686861, 728567535, 510202114, 7548453140}
 
-# Файл для постоянного хранения загруженного каталога
+# Основные файлы для хранения
 CATALOG_FILE = "catalog_data.json"
+LATEST_EXCEL_FILE = "latest_catalog.xlsx"
 
 # Названия кнопок главного меню
-BTN_CHOOSE_CATEGORY = "Выбор категории"
-BTN_CONTACT_MANAGER = "Связаться с менеджером"
-BTN_SUBSCRIBE = "Подписаться"   
+BTN_CHOOSE_CATEGORY = "📂 Выбор категории"
+# Кнопка поиска по каталогу
+BTN_CONTACT_MANAGER = "💬 Связаться с менеджером"
+BTN_SUBSCRIBE = "✅ Подписаться"
+BTN_GET_EXCEL = "📥 Получить Excel-файл"
+BTN_SEARCH_CATALOG = "🔍 Поиск по каталогу"
+
+# Добавим константу команды помощи
+CMD_HELP = "help"
 
 # Ссылки для связи с менеджером
 MANAGER_TELEGRAM_LINK = "https://t.me/tanya_chilikova"
 # Замените номер на актуальный формат для WhatsApp chat link
 MANAGER_WHATSAPP_LINK = "https://wa.me/79278783209"
 
+# Главное меню: первая строка – основные действия, вторая – поиск
 MAIN_MENU_MARKUP = ReplyKeyboardMarkup(
-    [[BTN_CHOOSE_CATEGORY, BTN_CONTACT_MANAGER, BTN_SUBSCRIBE]],
+    [
+        [BTN_CHOOSE_CATEGORY, BTN_CONTACT_MANAGER],
+        [BTN_SUBSCRIBE, BTN_GET_EXCEL],
+        [BTN_SEARCH_CATALOG],
+    ],
     resize_keyboard=True,
 )
 
@@ -93,7 +95,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if catalog:
             context.application.bot_data["catalog"] = catalog
     if catalog:
-        buttons = [[InlineKeyboardButton(text=cat, callback_data=f"cat|{cat}")] for cat in catalog.keys()]
+        buttons = []
+        for cat_name, subdict in catalog.items():
+            count = sum(len(items) for items in subdict.values())
+            buttons.append([InlineKeyboardButton(text=f"{cat_name} ({count})", callback_data=f"cat|{cat_name}")])
         markup = InlineKeyboardMarkup(buttons)
         await update.message.reply_text("Выберите категорию:", reply_markup=markup)
     else:
@@ -180,7 +185,7 @@ BRAND_KEYWORDS: dict[str, str] = {
 async def add_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Команда /add — загрузить новый Excel-файл с каталогом (только админ)."""
     user_id = update.effective_user.id if update.effective_user else None
-    if user_id != ADMIN_USER_ID:
+    if user_id not in ADMIN_USER_IDS:
         await update.message.reply_text("Извините, команда доступна только администратору.")
         return
 
@@ -188,6 +193,16 @@ async def add_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     context.user_data["awaiting_file"] = True
     await update.message.reply_text(
         "Отправьте Excel-файл (.xlsx) с обновлённой базой товаров."
+    )
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Команда /help — выводит информацию о связи с менеджером."""
+    link_btn_tg = InlineKeyboardButton("Написать менеджеру в Телеграм", url=MANAGER_TELEGRAM_LINK)
+    link_btn_wa = InlineKeyboardButton("Написать менеджеру в WhatsApp", url=MANAGER_WHATSAPP_LINK)
+    await update.message.reply_text(
+        "Выберите удобный способ связи с нашим менеджером:",
+        reply_markup=InlineKeyboardMarkup([[link_btn_tg], [link_btn_wa]]),
     )
 
 
@@ -226,7 +241,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     awaiting_file = context.user_data.get("awaiting_file")
 
     # Принимаем файл только от администратора и только после команды /add
-    if user_id != ADMIN_USER_ID or not awaiting_file:
+    if user_id not in ADMIN_USER_IDS or not awaiting_file:
         await update.message.reply_text(
             "Извините, сейчас бот не ожидает файл или у вас нет прав загрузки."
         )
@@ -260,6 +275,12 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         return
 
+    # Сохраняем копию файла, чтобы пользователи могли скачивать актуальную версию
+    try:
+        shutil.copy(src_path, LATEST_EXCEL_FILE)
+    except Exception:
+        pass
+
     # Строим каталог по описанию
     catalog: dict[str, dict[str, list[dict[str, str]]]] = {}
     for _, row in df.iterrows():
@@ -277,8 +298,11 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # А также на диск, чтобы каталог сохранялся между перезапусками бота
     _save_catalog_to_disk(catalog)
 
-    # Отправляем пользователю выбор категорий
-    buttons = [[InlineKeyboardButton(text=cat, callback_data=f"cat|{cat}")] for cat in catalog.keys()]
+    # Отправляем пользователю выбор категорий с количеством товаров
+    buttons = []
+    for cat, subdict in catalog.items():
+        count = sum(len(items) for items in subdict.values())
+        buttons.append([InlineKeyboardButton(text=f"{cat} ({count})", callback_data=f"cat|{cat}")])
     markup = InlineKeyboardMarkup(buttons)
     await update.message.reply_text("Каталог загружен! Выберите категорию:", reply_markup=markup)
 
@@ -291,12 +315,83 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработка нажатий на кнопки ReplyKeyboard."""
+    """Обработка текстовых сообщений и нажатий на кнопки меню."""
     text = update.message.text
+
+    # --- 1. Обработка режима поиска ---
+    if context.user_data.get("awaiting_search"):
+        # Снимаем флаг ожидания запроса
+        context.user_data["awaiting_search"] = False
+
+        query = (text or "").strip()
+        if not query:
+            await update.message.reply_text("Пустой запрос. Попробуйте ещё раз.")
+            return
+
+        catalog: dict | None = context.application.bot_data.get("catalog")
+        if not catalog:
+            await update.message.reply_text("Каталог пока не загружен. Пожалуйста, попробуйте позже.")
+            return
+
+        query_low = query.lower()
+        results: list[tuple[str, str, dict]] = []  # (cat, sub, item)
+        for cat, subdict in catalog.items():
+            for sub, items in subdict.items():
+                for item in items:
+                    if query_low in str(item["desc"]).lower():
+                        results.append((cat, sub, item))
+
+        if not results:
+            await update.message.reply_text("Ничего не найдено по вашему запросу.")
+            return
+
+        # Формируем текст ответа
+        lines: list[str] = []
+        for cat, sub, item in results:
+            desc = html.escape(str(item["desc"]))
+            price = str(item["price"]).strip()
+            line = f"<b>{desc}</b>"
+            if price:
+                line += f" — <i>{html.escape(price)} ₽</i>"
+            line += f"\n<i>{cat} / {sub}</i>"
+            lines.append(line)
+
+        # Разбиваем длинные ответы (лимит 4096 символов)
+        MAX_LENGTH = 4000
+        chunks: list[str] = []
+        current: list[str] = []
+        cur_len = 0
+        for line in lines:
+            ln = len(line) + 1
+            if cur_len + ln > MAX_LENGTH and current:
+                chunks.append("\n\n".join(current))
+                current = [line]
+                cur_len = ln
+            else:
+                current.append(line)
+                cur_len += ln
+        if current:
+            chunks.append("\n\n".join(current))
+
+        # Отправляем все куски (первый – с меню, остальные – без)
+        for idx, chunk in enumerate(chunks):
+            await update.message.reply_text(chunk, parse_mode="HTML" if chunk else None,
+                                            reply_markup=MAIN_MENU_MARKUP if idx == len(chunks)-1 else None)
+        return
+
+    # --- 2. Обработка нажатий на основные кнопки ---
+    if text == BTN_SEARCH_CATALOG:
+        # Запрашиваем поисковый запрос
+        context.user_data["awaiting_search"] = True
+        await update.message.reply_text("Введите поисковый запрос по каталогу:")
+        return
     if text == BTN_CHOOSE_CATEGORY:
         catalog: dict | None = context.application.bot_data.get("catalog")
         if catalog:
-            buttons = [[InlineKeyboardButton(text=cat, callback_data=f"cat|{cat}")] for cat in catalog.keys()]
+            buttons = []
+            for cat_name, subdict in catalog.items():
+                count = sum(len(items) for items in subdict.values())
+                buttons.append([InlineKeyboardButton(text=f"{cat_name} ({count})", callback_data=f"cat|{cat_name}")])
             markup = InlineKeyboardMarkup(buttons)
             await update.message.reply_text("Выберите категорию:", reply_markup=markup)
         else:
@@ -309,6 +404,16 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             "Выберите удобный способ связи с нашим менеджером:",
             reply_markup=InlineKeyboardMarkup([[link_btn_tg], [link_btn_wa]]),
         )
+    elif text == BTN_GET_EXCEL:
+        # Отправляем последнюю загруженную Excel-версию каталога
+        if os.path.exists(LATEST_EXCEL_FILE):
+            try:
+                await update.message.reply_document(document=open(LATEST_EXCEL_FILE, "rb"), filename="catalog.xlsx")
+            except Exception as exc:
+                await update.message.reply_text(f"Не удалось отправить файл: {exc}")
+        else:
+            await update.message.reply_text("Файл каталога пока не загружен.")
+
     elif text == BTN_SUBSCRIBE:
         subs: set[int] = context.application.bot_data.setdefault("subscribers", set())
         user_id = update.effective_user.id if update.effective_user else None
@@ -335,8 +440,10 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
     if parts[0] == "cat":  # Выбрана категория
         cat = parts[1]
         subcats = catalog.get(cat, {})
-        buttons = [[InlineKeyboardButton(text=sub, callback_data=f"sub|{cat}|{sub}")]
-                   for sub in subcats.keys()]
+        # Кнопки подкатегорий с количеством товаров
+        buttons = []
+        for sub_name, items in subcats.items():
+            buttons.append([InlineKeyboardButton(text=f"{sub_name} ({len(items)})", callback_data=f"sub|{cat}|{sub_name}")])
         # Кнопка назад на уровень выше отсутствует (это корень)
         buttons.append([InlineKeyboardButton(text="← Назад", callback_data="back|root")])
         markup = InlineKeyboardMarkup(buttons)
@@ -345,17 +452,63 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
     elif parts[0] == "sub":  # Выбрана подкатегория
         cat, sub = parts[1], parts[2]
         items = catalog.get(cat, {}).get(sub, [])
-        text_lines = [f"{item['desc']} — {item['price']}" for item in items]
-        text = "\n".join(text_lines) or "Нет товаров."
+        # Форматируем список для лучшей читаемости (без нумерации, с символом ₽)
+        text_lines: list[str] = []
+        for item in items:
+            desc = html.escape(str(item['desc']))
+            price = str(item['price']).strip()
+            line = f"<b>{desc}</b>"
+            if price:
+                line += f" — <i>{html.escape(price)} ₽</i>"
+            text_lines.append(line)
+
+        # Разбиваем сообщение на части, чтобы не превышать лимит Telegram
+        MAX_LENGTH = 4000  # с запасом меньше 4096
+        chunks: list[str] = []
+        current_lines: list[str] = []
+        current_len = 0
+        for line in text_lines:
+            line_len = len(line) + 1  # +1 для перевода строки
+            if current_len + line_len > MAX_LENGTH and current_lines:
+                chunks.append("\n".join(current_lines))
+                current_lines = [line]
+                current_len = line_len
+            else:
+                current_lines.append(line)
+                current_len += line_len
+        if current_lines:
+            chunks.append("\n".join(current_lines))
+
+        if not chunks:
+            chunks = ["Нет товаров."]
+
         buttons = [[InlineKeyboardButton(text="← Назад", callback_data=f"cat|{cat}")]]
         markup = InlineKeyboardMarkup(buttons)
-        await query.edit_message_text(
-            f"Категория: {cat} / {sub}\n\n{text}", reply_markup=markup
-        )
+
+        chat_id = update.effective_chat.id
+
+        if len(chunks) == 1:
+            # Сообщение умещается в один кусок — отправляем с кнопкой
+            text_to_send = f"Категория: {cat} / {sub}\n\n{chunks[0]}"
+            await query.edit_message_text(text_to_send, reply_markup=markup, parse_mode="HTML")
+        else:
+            # Множественные куски: первый — без кнопки, последний — с кнопкой
+            first_text = f"Категория: {cat} / {sub}\n\n{chunks[0]}"
+            await query.edit_message_text(first_text, reply_markup=None, parse_mode="HTML")
+
+            # Средние куски (если есть) отправляем без кнопок
+            for chunk in chunks[1:-1]:
+                await context.bot.send_message(chat_id=chat_id, text=chunk, parse_mode="HTML")
+
+            # Последний кусок с кнопкой "Назад"
+            await context.bot.send_message(chat_id=chat_id, text=chunks[-1], reply_markup=markup, parse_mode="HTML")
 
     elif parts[0] == "back":
         # Назад к списку категорий
-        buttons = [[InlineKeyboardButton(text=cat, callback_data=f"cat|{cat}")] for cat in catalog.keys()]
+        buttons = []
+        for cat_name, subdict in catalog.items():
+            count = sum(len(items) for items in subdict.values())
+            buttons.append([InlineKeyboardButton(text=f"{cat_name} ({count})", callback_data=f"cat|{cat_name}")])
         markup = InlineKeyboardMarkup(buttons)
         await query.edit_message_text("Выберите категорию:", reply_markup=markup)
 
@@ -378,6 +531,7 @@ def main() -> None:
     # Регистрируем обработчики
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("add", add_command))
+    app.add_handler(CommandHandler("help", help_command))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND) & (~filters.Document.ALL), handle_text))
     app.add_handler(CallbackQueryHandler(callback_query_handler))
