@@ -1,3 +1,11 @@
+async def delete_all_user_messages(context, chat_id):
+    msg_ids = context.user_data.pop("all_msg_ids", [])
+    for msg_id in msg_ids:
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+        except Exception:
+            pass
+
 # tg_bot.py
 import os
 import tempfile
@@ -107,12 +115,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "Здравствуйте! Приветствуем вас в нашем каталоге. "
         "Вот что мы можем вам предложить"
     )
-    await update.message.reply_text(greet_text, reply_markup=MAIN_MENU_MARKUP)
-
+    chat_id = update.effective_chat.id
+    await delete_all_user_messages(context, chat_id)
+    m = await context.bot.send_message(chat_id=chat_id, text=greet_text, reply_markup=MAIN_MENU_MARKUP)
+    context.user_data["all_msg_ids"] = [m.message_id]
     # Показать каталог, если он уже был загружен администратором
     catalog: dict | None = context.application.bot_data.get("catalog")
     if not catalog:
-        # Пробуем подгрузить с диска при первом обращении
         catalog = _load_catalog_from_disk()
         if catalog:
             context.application.bot_data["catalog"] = catalog
@@ -123,9 +132,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             count = sum(len(items) for items in subdict.values())
             buttons.append([InlineKeyboardButton(text=f"{cat_name} ({count})", callback_data=f"cat|{cat_name}")])
         markup = InlineKeyboardMarkup(buttons)
-        await update.message.reply_text("Выберите категорию:", reply_markup=markup)
+        m2 = await context.bot.send_message(chat_id=chat_id, text="Выберите категорию:", reply_markup=markup)
+        context.user_data["all_msg_ids"] = [m.message_id, m2.message_id]
     else:
-        await update.message.reply_text("Каталог пока не загружен. Пожалуйста, попробуйте позже.")
+        m2 = await context.bot.send_message(chat_id=chat_id, text="Каталог пока не загружен. Пожалуйста, попробуйте позже.", reply_markup=MAIN_MENU_MARKUP)
+        context.user_data["all_msg_ids"] = [m.message_id, m2.message_id]
 
 
 # -------------------------------------------------------------------
@@ -497,36 +508,42 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработка текстовых сообщений и нажатий на кнопки меню."""
+
+    chat_id = update.effective_chat.id
     text = update.message.text
+    # Удаляем все старые сообщения пользователя перед новым действием
+    await delete_all_user_messages(context, chat_id)
+    # Удаляем последнее сообщение пользователя (если оно не команда)
+    if update.message and not update.message.text.startswith("/"):
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=update.message.message_id)
+        except Exception:
+            pass
 
     # --- 1. Обработка режима поиска ---
     if context.user_data.get("awaiting_search"):
-        # Снимаем флаг ожидания запроса
         context.user_data["awaiting_search"] = False
-
         query = (text or "").strip()
         if not query:
-            await update.message.reply_text("Пустой запрос. Попробуйте ещё раз.")
+            m = await context.bot.send_message(chat_id=chat_id, text="Пустой запрос. Попробуйте ещё раз.", reply_markup=MAIN_MENU_MARKUP)
+            context.user_data["all_msg_ids"] = [m.message_id]
             return
-
         catalog: dict | None = context.application.bot_data.get("catalog")
         if not catalog:
-            await update.message.reply_text("Каталог пока не загружен. Пожалуйста, попробуйте позже.")
+            m = await context.bot.send_message(chat_id=chat_id, text="Каталог пока не загружен. Пожалуйста, попробуйте позже.", reply_markup=MAIN_MENU_MARKUP)
+            context.user_data["all_msg_ids"] = [m.message_id]
             return
-
         query_low = query.lower()
-        results: list[tuple[str, str, dict]] = []  # (cat, sub, item)
+        results: list[tuple[str, str, dict]] = []
         for cat, subdict in catalog.items():
             for sub, items in subdict.items():
                 for item in items:
                     if query_low in str(item["desc"]).lower():
                         results.append((cat, sub, item))
-
         if not results:
-            await update.message.reply_text("Ничего не найдено по вашему запросу.")
+            m = await context.bot.send_message(chat_id=chat_id, text="Ничего не найдено по вашему запросу.", reply_markup=MAIN_MENU_MARKUP)
+            context.user_data["all_msg_ids"] = [m.message_id]
             return
-
-        # Формируем текст ответа
         lines: list[str] = []
         for cat, sub, item in results:
             desc = html.escape(str(item["desc"]))
@@ -536,8 +553,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 line += f" — <i>{html.escape(price)} ₽</i>"
             line += f"\n<i>{cat} / {sub}</i>"
             lines.append(line)
-
-        # Разбиваем длинные ответы (лимит 4096 символов)
         MAX_LENGTH = 4000
         chunks: list[str] = []
         current: list[str] = []
@@ -553,29 +568,24 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 cur_len += ln
         if current:
             chunks.append("\n\n".join(current))
-
-        # Показываем количество найденных позиций
-        await update.message.reply_text(f"Найдено позиций: {len(results)}")
-
-        # Кнопка "Назад" для поиска
+        msg_ids = []
+        m = await context.bot.send_message(chat_id=chat_id, text=f"Найдено позиций: {len(results)}", reply_markup=MAIN_MENU_MARKUP)
+        msg_ids.append(m.message_id)
         back_markup = InlineKeyboardMarkup([[InlineKeyboardButton(text="← Назад", callback_data="back|root")]])
-
-        # Сохраняем id сообщений поиска для последующего удаления (если потребуется)
-        search_msg_ids = []
         for idx, chunk in enumerate(chunks):
             if idx == len(chunks) - 1:
-                msg = await update.message.reply_text(chunk, parse_mode="HTML" if chunk else None, reply_markup=back_markup)
+                msg = await context.bot.send_message(chat_id=chat_id, text=chunk, parse_mode="HTML" if chunk else None, reply_markup=back_markup)
             else:
-                msg = await update.message.reply_text(chunk, parse_mode="HTML" if chunk else None)
-            search_msg_ids.append(msg.message_id)
-        context.user_data["last_search_msg_ids"] = search_msg_ids
+                msg = await context.bot.send_message(chat_id=chat_id, text=chunk, parse_mode="HTML" if chunk else None)
+            msg_ids.append(msg.message_id)
+        context.user_data["all_msg_ids"] = msg_ids
         return
 
     # --- 2. Обработка нажатий на основные кнопки ---
     if text == BTN_SEARCH_CATALOG:
-        # Запрашиваем поисковый запрос
         context.user_data["awaiting_search"] = True
-        await update.message.reply_text("Введите поисковый запрос по каталогу:")
+        m = await context.bot.send_message(chat_id=chat_id, text="Введите поисковый запрос по каталогу:", reply_markup=MAIN_MENU_MARKUP)
+        context.user_data["all_msg_ids"] = [m.message_id]
         return
     if text == BTN_CHOOSE_CATEGORY:
         catalog: dict | None = context.application.bot_data.get("catalog")
@@ -586,46 +596,59 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 count = sum(len(items) for items in subdict.values())
                 buttons.append([InlineKeyboardButton(text=f"{cat_name} ({count})", callback_data=f"cat|{cat_name}")])
             markup = InlineKeyboardMarkup(buttons)
-            await update.message.reply_text("Выберите категорию:", reply_markup=markup)
+            m = await context.bot.send_message(chat_id=chat_id, text="Выберите категорию:", reply_markup=markup)
+            context.user_data["all_msg_ids"] = [m.message_id]
         else:
-            await update.message.reply_text("Каталог пока не загружен. Пожалуйста, попробуйте позже.")
+            m = await context.bot.send_message(chat_id=chat_id, text="Каталог пока не загружен. Пожалуйста, попробуйте позже.", reply_markup=MAIN_MENU_MARKUP)
+            context.user_data["all_msg_ids"] = [m.message_id]
     elif text == BTN_CONTACT_MANAGER:
-        # Кнопки с ссылками на менеджера
         link_btn_tg = InlineKeyboardButton("Написать менеджеру в Телеграм", url=MANAGER_TELEGRAM_LINK)
         link_btn_wa = InlineKeyboardButton("Написать менеджеру в WhatsApp", url=MANAGER_WHATSAPP_LINK)
-        await update.message.reply_text(
-            "Выберите удобный способ связи с нашим менеджером:",
-            reply_markup=InlineKeyboardMarkup([[link_btn_tg], [link_btn_wa]]),
+        m = await context.bot.send_message(
+            chat_id=chat_id,
+            text="Выберите удобный способ связи с нашим менеджером:",
+            reply_markup=MAIN_MENU_MARKUP
         )
+        # Отправим также инлайн-кнопки отдельным сообщением, чтобы не терять функционал
+        m2 = await context.bot.send_message(
+            chat_id=chat_id,
+            text="Быстрые ссылки:",
+            reply_markup=InlineKeyboardMarkup([[link_btn_tg], [link_btn_wa]])
+        )
+        context.user_data["all_msg_ids"] = [m.message_id, m2.message_id]
     elif text == BTN_GET_EXCEL:
-        # Отправляем последнюю загруженную Excel-версию каталога
         if os.path.exists(LATEST_EXCEL_FILE):
             try:
-                await update.message.reply_document(document=open(LATEST_EXCEL_FILE, "rb"), filename="catalog.xlsx")
+                m = await context.bot.send_document(chat_id=chat_id, document=open(LATEST_EXCEL_FILE, "rb"), filename="catalog.xlsx", reply_markup=MAIN_MENU_MARKUP)
+                context.user_data["all_msg_ids"] = [m.message_id]
             except Exception as exc:
-                await update.message.reply_text(f"Не удалось отправить файл: {exc}")
+                m = await context.bot.send_message(chat_id=chat_id, text=f"Не удалось отправить файл: {exc}", reply_markup=MAIN_MENU_MARKUP)
+                context.user_data["all_msg_ids"] = [m.message_id]
         else:
-            await update.message.reply_text("Файл каталога пока не загружен.")
+            m = await context.bot.send_message(chat_id=chat_id, text="Файл каталога пока не загружен.", reply_markup=MAIN_MENU_MARKUP)
+            context.user_data["all_msg_ids"] = [m.message_id]
 
     elif text == BTN_SUBSCRIBE:
         subs: set[int] = context.application.bot_data.setdefault("subscribers", set())
         user_id = update.effective_user.id if update.effective_user else None
         if user_id:
             subs.add(user_id)
-            await update.message.reply_text("Спасибо! Вы подписаны на обновления.")
+            m = await context.bot.send_message(chat_id=chat_id, text="Спасибо! Вы подписаны на обновления.", reply_markup=MAIN_MENU_MARKUP)
+            context.user_data["all_msg_ids"] = [m.message_id]
         else:
-            await update.message.reply_text("Не удалось выполнить подписку.")
+            m = await context.bot.send_message(chat_id=chat_id, text="Не удалось выполнить подписку.", reply_markup=MAIN_MENU_MARKUP)
+            context.user_data["all_msg_ids"] = [m.message_id]
 
     # --- 3. Обработка неизвестных сообщений ---
     else:
-        # Если сообщение не распознано, отвечаем пользователю и показываем меню
-        await update.message.reply_text(
-            "Извините, я вас не понял. Пожалуйста, выберите действие из меню ниже.",
-            reply_markup=MAIN_MENU_MARKUP,
-        )
+        m = await context.bot.send_message(chat_id=chat_id, text="Извините, я вас не понял. Пожалуйста, выберите действие из меню ниже.", reply_markup=MAIN_MENU_MARKUP)
+        context.user_data["all_msg_ids"] = [m.message_id]
 
 
 async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = update.effective_chat.id
+    # Удаляем все старые сообщения пользователя перед новым действием
+    await delete_all_user_messages(context, chat_id)
     query = update.callback_query
     await query.answer()
     data = query.data or ""
@@ -640,32 +663,17 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
 
     if parts[0] == "cat":  # Выбрана категория
         cat = parts[1]
-        # Навигационный стек: пушим текущий уровень
-        nav_stack = context.user_data.get("navigation_stack", [])
-        # Если пришли не из back, пушим
-        if not nav_stack or nav_stack[-1] != ("cat", cat):
-            nav_stack.append(("cat", cat))
-        context.user_data["navigation_stack"] = nav_stack
         subcats = catalog.get(cat, {})
-        # Кнопки подкатегорий с количеством товаров
         buttons = []
         for sub_name, items in subcats.items():
             buttons.append([InlineKeyboardButton(text=f"{sub_name} ({len(items)})", callback_data=f"sub|{cat}|{sub_name}")])
-        # Кнопка назад: если стек не пуст, возвращаемся к предыдущему уровню
-        if len(nav_stack) > 1:
-            buttons.append([InlineKeyboardButton(text="← Назад", callback_data="back")])
-        else:
-            buttons.append([InlineKeyboardButton(text="← Назад", callback_data="back|root")])
+        buttons.append([InlineKeyboardButton(text="← Назад", callback_data="back|root")])
         markup = InlineKeyboardMarkup(buttons)
-        await query.edit_message_text(f"Категория: {cat}\nВыберите подкатегорию:", reply_markup=markup)
+        m = await context.bot.send_message(chat_id=chat_id, text=f"Категория: {cat}\nВыберите подкатегорию:", reply_markup=markup)
+        context.user_data["all_msg_ids"] = [m.message_id]
 
     elif parts[0] == "sub":  # Выбрана подкатегория
         cat, sub = parts[1], parts[2]
-        # Навигационный стек: пушим текущий уровень
-        nav_stack = context.user_data.get("navigation_stack", [])
-        if not nav_stack or nav_stack[-1] != ("sub", cat, sub):
-            nav_stack.append(("sub", cat, sub))
-        context.user_data["navigation_stack"] = nav_stack
         items = catalog.get(cat, {}).get(sub, [])
         text_lines: list[str] = []
         for item in items:
@@ -695,94 +703,30 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
         if not chunks:
             chunks = ["Нет товаров."]
 
-        # Кнопка назад: если стек не пуст, возвращаемся к предыдущему уровню
-        nav_stack = context.user_data.get("navigation_stack", [])
-        if len(nav_stack) > 1:
-            buttons = [[InlineKeyboardButton(text="← Назад", callback_data="back")]]
-        else:
-            buttons = [[InlineKeyboardButton(text="← Назад", callback_data="back|root")]]
+        buttons = [[InlineKeyboardButton(text="← Назад", callback_data=f"cat|{cat}")]]
         markup = InlineKeyboardMarkup(buttons)
 
-        # Всегда edit_message_text, без удаления сообщений
-        text_to_send = f"Категория: {cat} / {sub}\n\n{chunks[0]}"
-        await query.edit_message_text(text_to_send, reply_markup=markup, parse_mode="HTML")
+        msg_ids = []
+        if len(chunks) == 1:
+            text_to_send = f"Категория: {cat} / {sub}\n\n{chunks[0]}"
+            m = await context.bot.send_message(chat_id=chat_id, text=text_to_send, reply_markup=markup, parse_mode="HTML")
+            msg_ids.append(m.message_id)
+        else:
+            first_text = f"Категория: {cat} / {sub}\n\n{chunks[0]}"
+            m = await context.bot.send_message(chat_id=chat_id, text=first_text, reply_markup=None, parse_mode="HTML")
+            msg_ids.append(m.message_id)
+            for chunk in chunks[1:-1]:
+                mm = await context.bot.send_message(chat_id=chat_id, text=chunk, parse_mode="HTML")
+                msg_ids.append(mm.message_id)
+            mm = await context.bot.send_message(chat_id=chat_id, text=chunks[-1], reply_markup=markup, parse_mode="HTML")
+            msg_ids.append(mm.message_id)
+        context.user_data["all_msg_ids"] = msg_ids
         return
 
     elif parts[0] == "back":
-        # Навигационный стек: pop текущий уровень
-        nav_stack = context.user_data.get("navigation_stack", [])
-        if nav_stack:
-            nav_stack.pop()
-        context.user_data["navigation_stack"] = nav_stack
-
-        # Если стек пуст или явно back|root — показываем корень каталога
-        if (len(parts) > 1 and parts[1] == "root") or not nav_stack:
-            buttons = []
-            for cat_name in _sort_categories(list(catalog.keys())):
-                subdict = catalog[cat_name]
-                count = sum(len(items) for items in subdict.values())
-                buttons.append([InlineKeyboardButton(text=f"{cat_name} ({count})", callback_data=f"cat|{cat_name}")])
-            markup = InlineKeyboardMarkup(buttons)
-            try:
-                await query.edit_message_text("Выберите категорию:", reply_markup=markup)
-            except Exception as e:
-                from telegram.error import BadRequest
-                if isinstance(e, BadRequest):
-                    await context.bot.send_message(chat_id=update.effective_chat.id, text="Выберите категорию:", reply_markup=markup)
-                else:
-                    raise
-            return
-
-        # Иначе — показываем предыдущий уровень
-        prev = nav_stack[-1] if nav_stack else None
-        if prev:
-            if prev[0] == "cat":
-                cat = prev[1]
-                subcats = catalog.get(cat, {})
-                buttons = []
-                for sub_name, items in subcats.items():
-                    buttons.append([InlineKeyboardButton(text=f"{sub_name} ({len(items)})", callback_data=f"sub|{cat}|{sub_name}")])
-                if len(nav_stack) > 1:
-                    buttons.append([InlineKeyboardButton(text="← Назад", callback_data="back")])
-                else:
-                    buttons.append([InlineKeyboardButton(text="← Назад", callback_data="back|root")])
-                markup = InlineKeyboardMarkup(buttons)
-                await query.edit_message_text(f"Категория: {cat}\nВыберите подкатегорию:", reply_markup=markup)
-            elif prev[0] == "sub":
-                cat, sub = prev[1], prev[2]
-                items = catalog.get(cat, {}).get(sub, [])
-                text_lines: list[str] = []
-                for item in items:
-                    desc = html.escape(str(item['desc']))
-                    price = str(item['price']).strip()
-                    line = f"<b>{desc}</b>"
-                    if price:
-                        line += f" — <i>{html.escape(price)} ₽</i>"
-                    text_lines.append(line)
-                MAX_LENGTH = 4000
-                chunks: list[str] = []
-                current_lines: list[str] = []
-                current_len = 0
-                for line in text_lines:
-                    line_len = len(line) + 1
-                    if current_len + line_len > MAX_LENGTH and current_lines:
-                        chunks.append("\n".join(current_lines))
-                        current_lines = [line]
-                        current_len = line_len
-                    else:
-                        current_lines.append(line)
-                        current_len += line_len
-                if current_lines:
-                    chunks.append("\n".join(current_lines))
-                if not chunks:
-                    chunks = ["Нет товаров."]
-                if len(nav_stack) > 1:
-                    buttons = [[InlineKeyboardButton(text="← Назад", callback_data="back")]]
-                else:
-                    buttons = [[InlineKeyboardButton(text="← Назад", callback_data="back|root")]]
-                markup = InlineKeyboardMarkup(buttons)
-                text_to_send = f"Категория: {cat} / {sub}\n\n{chunks[0]}"
-                await query.edit_message_text(text_to_send, reply_markup=markup, parse_mode="HTML")
+        # Просто показываем главное меню (все старые сообщения уже удалены)
+        m = await context.bot.send_message(chat_id=chat_id, text="Выберите действие:", reply_markup=MAIN_MENU_MARKUP)
+        context.user_data["all_msg_ids"] = [m.message_id]
         return
 
 
