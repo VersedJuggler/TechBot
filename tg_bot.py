@@ -195,7 +195,6 @@ CATEGORY_KEYWORDS: list[tuple[str, list[str]]] = [
     ]),
 ]
 
-# Бренды, используемые как подкатегории (по ключевым словам)
 BRAND_KEYWORDS: dict[str, str] = {
     # Смартфоны и электроника
     "apple": "Apple",
@@ -231,8 +230,10 @@ BRAND_KEYWORDS: dict[str, str] = {
     # Телефоны кнопочные / противоударные
     "nokia": "Nokia",
     "f+": "F+",
+    "digma linx": "Digma Linx",
     "blackview": "Blackview",
     "doogee": "DOOGEE",
+    "hotwav": "Hotwav",
     "oukitel": "OUKITEL",
     "unihertz": "Unihertz",
     # Прочее
@@ -321,21 +322,43 @@ def extract_category(description: str) -> tuple[str, str]:
                 return "Колонки", brand
         return "Колонки", "Общее"
 
-    # --- 4. Часы и браслеты (Garmin, Band, Instinct и др.) ---
+
+    # --- 4. Фен-стайлеры (Dyson, Supersonic, Airwrap и др.) ---
+    if re.search(r"фен|стайлер|hair dryer|styler|airwrap|supersonic|hd08|hd-08|hd16|hd-16|hs08|hs-08|ht01|ht-01", desc_low):
+        for kw, brand in BRAND_KEYWORDS.items():
+            if kw in desc_low:
+                return "Фен-стайлер", brand
+        return "Фен-стайлер", "Общее"
+
+    # --- 5. Пылесосы (все бренды, любые слова) ---
+    # Паттерн: пылесос, vacuum, cleaner, робот-пылесос, robot vacuum, robot cleaner, робот vacuum, робот cleaner, dreame, dyson, submarine
+    if re.search(r"пылесос|vacuum|cleaner|робот-пылесос|robot vacuum|robot cleaner|робот vacuum|робот cleaner|dreame|dyson|submarine", desc_low):
+        for kw, brand in BRAND_KEYWORDS.items():
+            if kw in desc_low:
+                return "Пылесосы", brand
+        return "Пылесосы", "Общее"
+
+    # --- 5. Часы и браслеты (Garmin, Band, Instinct и др.) ---
     if re.search(r"\b(часы|watch|band|fitbit|amazfit|gtr|gt3|instinct|forerunner|fenix|coros|garmin|band)\b", desc_low):
         for kw, brand in BRAND_KEYWORDS.items():
             if kw in desc_low:
                 return "Часы", brand
         return "Часы", "Общее"
 
-    # --- 5. Планшеты (Pad, Tab, Tablet, кроме Notepad) ---
+    # --- 6. Планшеты (Pad, Tab, Tablet, кроме Notepad) ---
     if (re.search(r"\bipad\b|\btab\b|\btablet\b|\bpad\b", desc_low) or re.search(r"pad[\s\d]", desc_low)) and not re.search(r"notepad", desc_low):
         for kw, brand in BRAND_KEYWORDS.items():
             if kw in desc_low:
                 return "Планшеты", brand
         return "Планшеты", "Общее"
 
-    # --- 6. Ноутбуки (Apple, Matebook, CPU, дюймы, модели) ---
+    # --- 7. Ноутбуки (Apple, Matebook, CPU, дюймы, модели, book, клавиатура) ---
+    # Явные признаки ноутбука: 'book' + дюймы, или 'клавиатура' (RU клавиатура и др.)
+    if (re.search(r"book", desc_low) and re.search(r"\d{2}\"", desc)) or re.search(r"клавиатура", desc_low):
+        for kw, brand in BRAND_KEYWORDS.items():
+            if kw in desc_low:
+                return "Ноутбуки", brand
+        return "Ноутбуки", "Общее"
     # Apple MacBook: Air/Pro + 13"/14"/15"/16"/M1/M2/M3/M4
     if (re.search(r"macbook|air|pro", desc_low) and (re.search(r"\d{2}\"", desc) or re.search(r"\bm[1-4]\b", desc_low))) or re.search(r"macbook", desc_low):
         return "Ноутбуки", "Apple"
@@ -363,8 +386,16 @@ def extract_category(description: str) -> tuple[str, str]:
                 return "Телефоны", brand
         return "Телефоны", "Общее"
 
-    # --- 8. Кнопочные и противоударные телефоны ---
-    if re.search(r"button phone|feature phone|противоударный|rugged|armor|tank|cyber|mega|nokia|f\+|blackview|doogee|oukitel|unihertz", desc_low):
+
+    # --- 8. Кнопочные телефоны ---
+    if re.search(r"button phone|feature phone|nokia|f\+|digma linx", desc_low):
+        for kw, brand in BRAND_KEYWORDS.items():
+            if kw in desc_low:
+                return "Телефоны кнопочные", brand
+        return "Телефоны кнопочные", "Общее"
+
+    # --- 9. Противоударные телефоны ---
+    if re.search(r"противоударный|rugged|armor|tank|cyber|mega|blackview|doogee|hotwav|oukitel|unihertz", desc_low):
         for kw, brand in BRAND_KEYWORDS.items():
             if kw in desc_low:
                 return "Телефоны противоударные", brand
@@ -372,13 +403,16 @@ def extract_category(description: str) -> tuple[str, str]:
 
     # --- 9. Игровые консоли и VR ---
     if re.search(r"playstation|ps4|ps5|xbox|switch|steam deck|джойстик|игровая консоль|игровая приставка|oculus|quest|vr|vr headset|vr шлем|meta quest", desc_low):
+        for kw, brand in BRAND_KEYWORDS.items():
+            if kw in desc_low:
+                return "Игровые консоли", brand
         return "Игровые консоли", "Общее"
 
     # --- 10. Экшен-камеры ---
     if re.search(r"gopro|osmo action|insta360|insta 360|dji|hero", desc_low):
         for kw, brand in BRAND_KEYWORDS.items():
             if kw in desc_low:
-                return "Экшен-камеры", brand
+                 return "Экшен-камеры", brand
         return "Экшен-камеры", "Общее"
 
     # --- 11. Фен-стайлеры ---
@@ -390,7 +424,7 @@ def extract_category(description: str) -> tuple[str, str]:
         for kw, brand in BRAND_KEYWORDS.items():
             if kw in desc_low:
                 return "Пылесосы", brand
-        return "Пылесосы", "Общее"
+        return "Пылесосы", "Общее"  
 
     # --- 13. Категория по ключевым словам (fallback) ---
     for cat, keywords in CATEGORY_KEYWORDS:
