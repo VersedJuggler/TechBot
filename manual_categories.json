@@ -1,1 +1,38 @@
-{}
+{
+  "Кондиционеры": {
+    "Ballu": [
+      {
+        "desc": "Ballu 1",
+        "price": "100"
+      },
+      {
+        "desc": "Ballu 2",
+        "price": "200"
+      },
+      {
+        "desc": "Ballu 3",
+        "price": "300"
+      }
+    ]
+  },
+  "Кофемашины": {
+    "DeLonghi": [
+      {
+        "desc": "DeLonghi 1",
+        "price": "100"
+      },
+      {
+        "desc": "DeLonghi 2",
+        "price": "200"
+      },
+      {
+        "desc": "DeLonghi 3",
+        "price": "300"
+      },
+      {
+        "desc": "DeLonghi 4",
+        "price": "400"
+      }
+    ]
+  }
+}

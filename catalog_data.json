@@ -26,6 +26,10 @@
         "price": 2100
       },
       {
+        "desc": "Apple Pencil Pro (2024)",
+        "price": 9300
+      },
+      {
         "desc": "Apple Pencil (USB-C) 1:1",
         "price": 2400
       },
@@ -226,10 +230,6 @@
         "price": 31000
       },
       {
-        "desc": "Apple iPad 10 256Gb WiFi White",
-        "price": 31000
-      },
-      {
         "desc": "Apple iPad 10 64Gb LTE Silver",
         "price": 32500
       },
@@ -238,20 +238,12 @@
         "price": 26500
       },
       {
-        "desc": "Apple iPad 9 256Gb WiFi Black",
-        "price": 27500
-      },
-      {
         "desc": "Apple iPad 9 64Gb LTE Black",
         "price": 28000
       },
       {
         "desc": "Apple iPad 9 64Gb WiFi White",
         "price": 23000
-      },
-      {
-        "desc": "Apple iPad (A16) 128 LTE Blue",
-        "price": 38000
       },
       {
         "desc": "Apple iPad (A16) 128 LTE Silver",
@@ -263,10 +255,6 @@
       },
       {
         "desc": "Apple iPad (A16) 128 WIFI Pink",
-        "price": 28200
-      },
-      {
-        "desc": "Apple iPad (A16) 128 WIFI Silver",
         "price": 28200
       },
       {
@@ -294,10 +282,6 @@
         "price": 36000
       },
       {
-        "desc": "Apple iPad (A16) 512 WIFI Pink",
-        "price": 48500
-      },
-      {
         "desc": "Apple iPad Air 6 13 M2 1Tb WiFi Purple",
         "price": 97000
       },
@@ -312,10 +296,6 @@
       {
         "desc": "Apple iPad Air 7 11 M3 128 WiFi Starlight",
         "price": 43500
-      },
-      {
-        "desc": "Apple iPad Air 7 11 M3 256 LTE Blue",
-        "price": 66800
       },
       {
         "desc": "Apple iPad Air 7 11 M3 256 LTE Purple",
@@ -344,14 +324,6 @@
       {
         "desc": "Apple iPad Air 7 13 M3 128 WiFi Sp. Gray",
         "price": 58000
-      },
-      {
-        "desc": "Apple iPad Air 7 13 M3 256 LTE Blue",
-        "price": 77000
-      },
-      {
-        "desc": "Apple iPad Air 7 13 M3 256 WiFi Blue",
-        "price": 68000
       },
       {
         "desc": "Apple iPad MINI 6 256Gb Wi-Fi Purple",
@@ -424,14 +396,6 @@
       {
         "desc": "Apple iPad Pro 11 M4 512 WiFi Silver",
         "price": 91500
-      },
-      {
-        "desc": "Apple iPad Pro 13\" M4 1Tb LTE Grey",
-        "price": 134000
-      },
-      {
-        "desc": "Apple iPad Pro 13\" M4 256Gb LTE Black",
-        "price": 95000
       },
       {
         "desc": "Apple iPad Pro 13\" M4 2Tb Silver LTE",
@@ -658,6 +622,10 @@
         "price": 34600
       },
       {
+        "desc": "X.H. Pad7 Pro 12/512Gb Wi-Fi Green EU",
+        "price": 34600
+      },
+      {
         "desc": "X.H. Pad7 Pro 8/256Gb Wi-Fi Blue EU",
         "price": 31000
       }
@@ -670,6 +638,14 @@
       {
         "desc": "X.H. Poco Pad 8/256Gb Grey EU",
         "price": 18000
+      },
+      {
+        "desc": "X.H. Redmi Pad 2 4/128 Grey RU",
+        "price": 14000
+      },
+      {
+        "desc": "X.H. Redmi Pad 2 4/128 Purple RU",
+        "price": 14000
       },
       {
         "desc": "X.H. Redmi Pad 2 8/256 Grey EU",
@@ -685,10 +661,6 @@
       },
       {
         "desc": "X.H. REDMI Pad Pro 8/256Gb Wi-Fi Graphite Grey EU",
-        "price": 18500
-      },
-      {
-        "desc": "X.H. REDMI Pad Pro 8/256Gb Wi-Fi Mint Green EU",
         "price": 18500
       },
       {
@@ -748,6 +720,10 @@
         "price": 7200
       },
       {
+        "desc": "Steamdeck OLED 512",
+        "price": 49700
+      },
+      {
         "desc": "TECNO Pop 7 2/64 Black RU",
         "price": 4000
       },
@@ -781,10 +757,6 @@
       },
       {
         "desc": "Apple наушники AirPods MAX (USB-C/2024) Blue /MWW63",
-        "price": 39000
-      },
-      {
-        "desc": "Apple наушники AirPods MAX (USB-C/2024) Orange /MWW73",
         "price": 39000
       },
       {
@@ -1026,6 +998,10 @@
         "price": 25500
       },
       {
+        "desc": "Ноутбук Asus VivoBook 16X i5-1335U 16/512",
+        "price": 40500
+      },
+      {
         "desc": "Ноутбук Asus VivoBook R15 5600H M1702QA-AU081 16/512Gb 17.3 Quiet Blue",
         "price": 54500
       }
@@ -1090,14 +1066,6 @@
         "price": 108000
       },
       {
-        "desc": "MC6T4 Air 13\" (M4 /16/256) Sky Blue",
-        "price": 75000
-      },
-      {
-        "desc": "MC6U4 Air 13\" (M4 /16/512) Sky Blue",
-        "price": 92000
-      },
-      {
         "desc": "MC6V4 Air 13\" (M4 /24/512) Sky Blue",
         "price": 107000
       },
@@ -1112,6 +1080,10 @@
       {
         "desc": "MC7X4 Air 13\" (M2/16/256) Midnight",
         "price": 61500
+      },
+      {
+        "desc": "MC7X4 Air 13\" (M2/16/256) Midnight (RU кл.)",
+        "price": 63000
       },
       {
         "desc": "MC9F4 Air 15\" (M3/16/256) Starlight",
@@ -1156,10 +1128,6 @@
       {
         "desc": "MGN93 Air 13\" (M1/8/256) Silver",
         "price": 55000
-      },
-      {
-        "desc": "MGN93 Air 13\" (M1/8/256) Silver (RU кл.)",
-        "price": 56000
       },
       {
         "desc": "MGND3 Air 13\" (M1/8/256) Gold",
@@ -1388,12 +1356,6 @@
         "price": 22000
       }
     ],
-    "Gigabyte": [
-      {
-        "desc": "Ноутбук Gigabyte Aorus 15 (BKG-13KZ754SH) Ultra 7 155H 16/1Tb Black",
-        "price": 115500
-      }
-    ],
     "Machenike": [
       {
         "desc": "Ноутбук MACHENIKE Machcreator One Rizen 5 7430U 16/512Gb Gray RU",
@@ -1472,14 +1434,6 @@
         "price": 15500
       },
       {
-        "desc": "Blackview Mega 8 12+24/512 LTE Green",
-        "price": 17000
-      },
-      {
-        "desc": "Blackview Mega 8 12+24/512 LTE Grey",
-        "price": 17000
-      },
-      {
         "desc": "Blackview OSCAL TIGER10 8/256Gb Green EU",
         "price": 8000
       }
@@ -1490,7 +1444,7 @@
         "price": 10500
       },
       {
-        "desc": "DOOGEE Blade 20 4+16/128 Black/Silver",
+        "desc": "DOOGEE Blade 20 4+16/128 Black",
         "price": 10000
       },
       {
@@ -1570,22 +1524,8 @@
         "price": 28000
       },
       {
-        "desc": "OUKITEL WP33 Pro 8/256Gb Black EU",
-        "price": 20000
-      },
-      {
-        "desc": "OUKITEL WP35 Pro 12/512Gb Grey EU",
-        "price": 18000
-      },
-      {
         "desc": "OUKITEL WP55 Pro 16+32/512 Orange EU",
         "price": 19000
-      }
-    ],
-    "Unihertz": [
-      {
-        "desc": "Unihertz Tank 3 Pro 18/512 Black",
-        "price": 47000
       }
     ]
   },
@@ -1634,10 +1574,6 @@
     ],
     "GoPro": [
       {
-        "desc": "GoPro HERO 11 Mini (+кейс) Black",
-        "price": 15000
-      },
-      {
         "desc": "GoPro HERO 12 Black",
         "price": 22500
       },
@@ -1665,7 +1601,7 @@
       },
       {
         "desc": "Insta 360 X5 8K",
-        "price": 41800
+        "price": 40500
       }
     ]
   },
@@ -1893,19 +1829,19 @@
       },
       {
         "desc": "Часы Apple watch S10 46 Jet Black Al lnk SL (MWWR3)",
-        "price": 28800
-      },
-      {
-        "desc": "Часы Apple watch S10 46 Jet Black M/L (MWWQ3)",
-        "price": 28800
+        "price": 28300
       },
       {
         "desc": "Часы Apple watch S10 46 Silver Al. Blue SL MWWN3",
-        "price": 28800
+        "price": 28300
       },
       {
         "desc": "Часы Apple watch S10 46 Silver Denim SB M/L MWWM3",
-        "price": 28800
+        "price": 28300
+      },
+      {
+        "desc": "Часы Apple watch S8 45 Starlight M/L",
+        "price": 19500
       },
       {
         "desc": "Часы Apple watch SE2 40 (2024) Midnight M/L (MXE93)",
@@ -1916,27 +1852,15 @@
         "price": 15800
       },
       {
-        "desc": "Часы Apple watch SE2 40 (2024) Midnight S/M (MXE73)",
-        "price": 15800
-      },
-      {
-        "desc": "Часы Apple watch SE2 40 (2024) Silver Al. Blue Cloud M/L (MXED3)",
-        "price": 15800
-      },
-      {
-        "desc": "Часы Apple watch SE2 44 (2024) Midnight Al. lnk SL (MXEP3)",
-        "price": 17800
-      },
-      {
-        "desc": "Часы Apple watch SE2 44 (2024) Midnight Al. Mid SB S/M (MXEJ3)",
-        "price": 17800
-      },
-      {
         "desc": "Часы Apple watch Ultra 2 (2024) Black Ti Black Ocean Band MX4P3/MYPD3/MYTC3",
         "price": 58500
       },
       {
         "desc": "Часы Apple watch Ultra 2 (2024) Black Ti Black TL (S/M) MX4U3",
+        "price": 59000
+      },
+      {
+        "desc": "Часы Apple watch Ultra 2 (2024) Black Ti Dark Green AL (L)",
         "price": 59000
       },
       {
@@ -1998,16 +1922,8 @@
         "price": 28000
       },
       {
-        "desc": "G. Google Pixel 9 12/128Gb Obsidian ( Black )",
-        "price": 47800
-      },
-      {
         "desc": "G. Google Pixel 9 Pro XL 128 Obsidian JP",
         "price": 63000
-      },
-      {
-        "desc": "G. Google Pixel 9 Pro XL 16/256 Rose JP",
-        "price": 69000
       }
     ],
     "HONOR": [
@@ -2022,14 +1938,6 @@
       {
         "desc": "Honor 400 12/256 Black EU",
         "price": 29500
-      },
-      {
-        "desc": "Honor 400 12/256 Gold EU",
-        "price": 29500
-      },
-      {
-        "desc": "Honor 400 12/512 Blue EU",
-        "price": 31500
       },
       {
         "desc": "Honor 400 Lite 12/256 Green EU",
@@ -2048,23 +1956,11 @@
         "price": 18700
       },
       {
-        "desc": "Honor Magic 7 Pro 12/512Gb Black EU",
-        "price": 63500
-      },
-      {
         "desc": "Honor Magic 7 Pro 12/512Gb Blue EU",
         "price": 63500
       },
       {
-        "desc": "Honor Magic 7 Pro 12/512Gb Grey EU",
-        "price": 63500
-      },
-      {
         "desc": "HONOR Magic V3 12/512 Black",
-        "price": 90000
-      },
-      {
-        "desc": "HONOR Magic V3 12/512 Brown",
         "price": 90000
       },
       {
@@ -2100,6 +1996,10 @@
       {
         "desc": "iPhone 11 64Gb Silver EU",
         "price": 26000
+      },
+      {
+        "desc": "iPhone 12 128Gb Green EU",
+        "price": 34500
       },
       {
         "desc": "iPhone 12 128Gb Purple EU",
@@ -2138,24 +2038,16 @@
         "price": 49000
       },
       {
-        "desc": "iPhone 13 512Gb Starlight EU",
-        "price": 49000
-      },
-      {
         "desc": "iPhone 14 128Gb Black EU",
         "price": 42000
       },
       {
         "desc": "iPhone 14 128Gb Red EU",
-        "price": 39500
+        "price": 39000
       },
       {
         "desc": "iPhone 14 128Gb White EU",
         "price": 42000
-      },
-      {
-        "desc": "iPhone 14 512Gb Black EU / JP",
-        "price": 57500
       },
       {
         "desc": "iPhone 14 Plus 128Gb Purple EU",
@@ -2168,14 +2060,6 @@
       {
         "desc": "iPhone 14 Plus 256Gb Black EU",
         "price": 52800
-      },
-      {
-        "desc": "iPhone 14 Plus 256Gb Blue EU",
-        "price": 52800
-      },
-      {
-        "desc": "iPhone 14 Plus 256Gb Yellow EU",
-        "price": 50000
       },
       {
         "desc": "iPhone 14 Plus 512Gb Black EU",
@@ -2219,19 +2103,11 @@
       },
       {
         "desc": "iPhone 15 128Gb Yellow EU",
-        "price": 50000
-      },
-      {
-        "desc": "iPhone 15 256Gb Black EU",
-        "price": 61000
+        "price": 49500
       },
       {
         "desc": "iPhone 15 256Gb Pink EU",
         "price": 61000
-      },
-      {
-        "desc": "iPhone 15 512 Black 2sim (обменка)",
-        "price": 54000
       },
       {
         "desc": "iPhone 15 512Gb Black JP",
@@ -2240,10 +2116,6 @@
       {
         "desc": "iPhone 15 Plus 128Gb Blue EU",
         "price": 53500
-      },
-      {
-        "desc": "iPhone 15 Pro 1Tb Natural EU",
-        "price": 104000
       },
       {
         "desc": "iPhone 15 Pro Max 256Gb Black 2sim (обменка)",
@@ -2266,14 +2138,6 @@
         "price": 90000
       },
       {
-        "desc": "iPhone 15 Pro Max 512Gb Blue EU",
-        "price": 97000
-      },
-      {
-        "desc": "iPhone 15 Pro Max 512Gb White EU",
-        "price": 97000
-      },
-      {
         "desc": "iPhone 16 128Gb Black EU",
         "price": 58500
       },
@@ -2294,28 +2158,12 @@
         "price": 58500
       },
       {
-        "desc": "iPhone 16 256Gb Black EU",
-        "price": 67000
-      },
-      {
-        "desc": "iPhone 16 256Gb Pink EU",
-        "price": 67500
-      },
-      {
         "desc": "iPhone 16 256Gb Teal EU",
-        "price": 67000
-      },
-      {
-        "desc": "iPhone 16 256Gb Ultramarine EU",
         "price": 67000
       },
       {
         "desc": "iPhone 16 256Gb White EU",
         "price": 67000
-      },
-      {
-        "desc": "iPhone 16E 128 White EU",
-        "price": 43700
       },
       {
         "desc": "iPhone 16E 256 Black EU",
@@ -2335,10 +2183,6 @@
       },
       {
         "desc": "iPhone 16 Plus 128Gb Teal EU",
-        "price": 66500
-      },
-      {
-        "desc": "iPhone 16 Plus 128Gb Ultramarine EU",
         "price": 66500
       },
       {
@@ -2395,7 +2239,7 @@
       },
       {
         "desc": "iPhone 16 Pro 1Tb Black JP",
-        "price": 114500
+        "price": 113500
       },
       {
         "desc": "iPhone 16 Pro 1Tb Desert (обменка)",
@@ -2403,11 +2247,7 @@
       },
       {
         "desc": "iPhone 16 Pro 1Tb Natural JP",
-        "price": 114500
-      },
-      {
-        "desc": "iPhone 16 Pro 1Tb White JP",
-        "price": 114500
+        "price": 113500
       },
       {
         "desc": "iPhone 16 Pro 1Tb White (обменка)",
@@ -2415,35 +2255,47 @@
       },
       {
         "desc": "iPhone 16 Pro 256Gb Black (2-sim)",
-        "price": 89000
+        "price": 88000
+      },
+      {
+        "desc": "iPhone 16 Pro 256Gb Black JP",
+        "price": 93500
       },
       {
         "desc": "iPhone 16 Pro 256Gb Desert (2-sim)",
-        "price": 89000
+        "price": 88000
       },
       {
         "desc": "iPhone 16 Pro 256Gb Desert EU",
         "price": 90500
       },
       {
+        "desc": "iPhone 16 Pro 256Gb Desert LLA (e-sim)",
+        "price": 84500
+      },
+      {
         "desc": "iPhone 16 Pro 256Gb Natural (2-sim)",
-        "price": 89000
+        "price": 88000
       },
       {
         "desc": "iPhone 16 Pro 256Gb Natural EU",
-        "price": 94500
-      },
-      {
-        "desc": "iPhone 16 Pro 256Gb White EU",
         "price": 93500
       },
       {
+        "desc": "iPhone 16 Pro 256Gb White JP",
+        "price": 93500
+      },
+      {
+        "desc": "iPhone 16 Pro 512Gb Black JP",
+        "price": 105000
+      },
+      {
         "desc": "iPhone 16 Pro 512Gb Desert EU",
-        "price": 106000
+        "price": 105000
       },
       {
         "desc": "iPhone 16 Pro 512Gb Desert JP",
-        "price": 106000
+        "price": 105000
       },
       {
         "desc": "iPhone 16 Pro 512Gb Desert LLA (e-sim)",
@@ -2451,11 +2303,11 @@
       },
       {
         "desc": "iPhone 16 Pro 512Gb Natural JP",
-        "price": 106000
+        "price": 105000
       },
       {
         "desc": "iPhone 16 Pro 512Gb White JP",
-        "price": 106000
+        "price": 105000
       },
       {
         "desc": "iPhone 16 Pro Max 1Tb Black EU",
@@ -2463,7 +2315,7 @@
       },
       {
         "desc": "iPhone 16 Pro Max 1Tb Black LLA (e-sim)",
-        "price": 116000
+        "price": 115000
       },
       {
         "desc": "iPhone 16 Pro Max 1Tb Black (обменка)",
@@ -2471,27 +2323,23 @@
       },
       {
         "desc": "iPhone 16 Pro Max 1Tb Desert LLA (e-sim)",
-        "price": 116000
+        "price": 115000
       },
       {
         "desc": "iPhone 16 Pro Max 1Tb Desert (обменка)",
         "price": 115000
       },
       {
-        "desc": "iPhone 16 Pro Max 1Tb Natural EU",
-        "price": 131000
-      },
-      {
         "desc": "iPhone 16 Pro Max 1Tb Natural LLA (e-sim)",
-        "price": 116000
+        "price": 115000
       },
       {
         "desc": "iPhone 16 Pro Max 1Tb White LLA (e-sim)",
-        "price": 116000
+        "price": 115000
       },
       {
         "desc": "iPhone 16 Pro Max 256 Black (2-sim)",
-        "price": 96500
+        "price": 95000
       },
       {
         "desc": "iPhone 16 Pro Max 256 Black EU",
@@ -2519,15 +2367,7 @@
       },
       {
         "desc": "iPhone 16 Pro Max 256 Natural (2-sim)",
-        "price": 96500
-      },
-      {
-        "desc": "iPhone 16 Pro Max 256 Natural EU",
-        "price": 97500
-      },
-      {
-        "desc": "iPhone 16 Pro Max 256 Natural JP",
-        "price": 97500
+        "price": 95000
       },
       {
         "desc": "iPhone 16 Pro Max 256 Natural LLA (e-sim)",
@@ -2535,7 +2375,7 @@
       },
       {
         "desc": "iPhone 16 Pro Max 256 White (2-sim)",
-        "price": 96500
+        "price": 95000
       },
       {
         "desc": "iPhone 16 Pro Max 256 White EU",
@@ -2547,7 +2387,7 @@
       },
       {
         "desc": "iPhone 16 Pro Max 512 Black JP",
-        "price": 112500
+        "price": 111500
       },
       {
         "desc": "iPhone 16 Pro Max 512 Black LLA",
@@ -2559,7 +2399,7 @@
       },
       {
         "desc": "iPhone 16 Pro Max 512 Desert EU",
-        "price": 112500
+        "price": 111500
       },
       {
         "desc": "iPhone 16 Pro Max 512 Desert LLA",
@@ -2571,7 +2411,7 @@
       },
       {
         "desc": "iPhone 16 Pro Max 512 Natural JP",
-        "price": 112500
+        "price": 111500
       },
       {
         "desc": "iPhone 16 Pro Max 512 Natural LLA",
@@ -2583,7 +2423,7 @@
       },
       {
         "desc": "iPhone 16 Pro Max 512 White JP",
-        "price": 112500
+        "price": 111500
       },
       {
         "desc": "iPhone 16 Pro Max 512 White LLA (e-sim)",
@@ -2598,10 +2438,6 @@
       {
         "desc": "OnePlus ACE 5 Racing 12/256 Green PLF110",
         "price": 24500
-      },
-      {
-        "desc": "OnePlus ACE 5 Ultra 12/256 Blue PLC110",
-        "price": 33000
       },
       {
         "desc": "OnePlus ACE 5 Ultra 16/512 Black PLC110",
@@ -2628,6 +2464,10 @@
       {
         "desc": "Realme 14T 8/256 зеленый RU",
         "price": 15700
+      },
+      {
+        "desc": "Realme C71 8/256 Green RU",
+        "price": 9700
       },
       {
         "desc": "Realme GT 6T 12/256 Silver RU",
@@ -2684,10 +2524,6 @@
     ],
     "Samsung": [
       {
-        "desc": "Samsung A05 4/64Gb Black EU",
-        "price": 6200
-      },
-      {
         "desc": "Samsung A05 4/64Gb Green EU",
         "price": 6200
       },
@@ -2725,23 +2561,23 @@
       },
       {
         "desc": "Samsung A06 6/128 5G Black EU",
-        "price": 9400
+        "price": 9000
       },
       {
         "desc": "Samsung A06 6/128 5G Light green EU",
-        "price": 9400
+        "price": 9000
       },
       {
         "desc": "Samsung A06 6/128Gb Black EU",
-        "price": 8300
+        "price": 8200
       },
       {
         "desc": "Samsung A06 6/128Gb Gold EU",
-        "price": 8300
+        "price": 8200
       },
       {
         "desc": "Samsung A06 6/128Gb Light Blue EU",
-        "price": 8300
+        "price": 8200
       },
       {
         "desc": "Samsung A14 4/128Gb Black EU",
@@ -2768,8 +2604,8 @@
         "price": 17200
       },
       {
-        "desc": "Samsung A55 8/256Gb Navy EU",
-        "price": 24300
+        "desc": "Samsung A36 8/128 Black EU",
+        "price": 19400
       },
       {
         "desc": "Samsung A56 12/256 Graphite EU",
@@ -2778,14 +2614,6 @@
       {
         "desc": "Samsung A56 12/256 Lightgray EU",
         "price": 27000
-      },
-      {
-        "desc": "Samsung A56 8/256 Graphite EU",
-        "price": 26000
-      },
-      {
-        "desc": "Samsung A56 8/256 Lightgrey KZ",
-        "price": 26000
       },
       {
         "desc": "Samsung A56 8/256 Olive EU",
@@ -2848,7 +2676,7 @@
         "price": 134000
       },
       {
-        "desc": "Samsung Fold 7 12/512 Jetblack RU",
+        "desc": "Samsung Fold 7 12/512 Silver Shadow EU",
         "price": 134000
       },
       {
@@ -2928,20 +2756,12 @@
         "price": 46500
       },
       {
-        "desc": "Samsung S25 12/128 Mint RU",
-        "price": 46500
-      },
-      {
-        "desc": "Samsung S25 12/128 Navy EU",
-        "price": 46500
-      },
-      {
         "desc": "Samsung S25 12/256 Icyblue CH",
         "price": 52000
       },
       {
         "desc": "Samsung S25 12/256 Icyblue EU",
-        "price": 53000
+        "price": 53200
       },
       {
         "desc": "Samsung S25 12/256 Navy CH",
@@ -2949,7 +2769,7 @@
       },
       {
         "desc": "Samsung S25 12/256 Navy EU",
-        "price": 53500
+        "price": 52600
       },
       {
         "desc": "Samsung S25 12/256 Silver Shadow CH",
@@ -2957,10 +2777,6 @@
       },
       {
         "desc": "Samsung S25 Edge 12/256 IceBlue EU",
-        "price": 59500
-      },
-      {
-        "desc": "Samsung S25 Edge 12/256 Jetblack EU",
         "price": 59500
       },
       {
@@ -2990,17 +2806,9 @@
       {
         "desc": "Samsung S25 Plus 12/256 Mint EU",
         "price": 61500
-      },
-      {
-        "desc": "Samsung S25 Ultra 12/256 Silverblue RU",
-        "price": 70500
       }
     ],
     "Xiaomi": [
-      {
-        "desc": "X.Mi 12 8/256Gb Blue EU",
-        "price": 19500
-      },
       {
         "desc": "X.Mi 12 8/256Gb Purple EU",
         "price": 19500
@@ -3110,10 +2918,6 @@
         "price": 16000
       },
       {
-        "desc": "X.Poco M7 Pro 8/256 Silver EU",
-        "price": 14000
-      },
-      {
         "desc": "X.Poco X7 12/512Gb Green EU",
         "price": 20000
       },
@@ -3150,6 +2954,10 @@
         "price": 7000
       },
       {
+        "desc": "X.Redmi 15C 4/128 Black RU",
+        "price": 8700
+      },
+      {
         "desc": "X.Redmi A3 4/128Gb Black RU",
         "price": 5200
       },
@@ -3183,10 +2991,6 @@
       },
       {
         "desc": "X.Redmi A5 3/64 Gold RU",
-        "price": 4500
-      },
-      {
-        "desc": "X.Redmi A5 3/64 Green RU",
         "price": 4500
       },
       {
@@ -3254,7 +3058,7 @@
         "price": 12700
       },
       {
-        "desc": "X.Redmi Note 14 Pro 12/256 Purple RU",
+        "desc": "X.Redmi Note 14 Pro 12/256 Black RU",
         "price": 18700
       },
       {
@@ -3266,20 +3070,16 @@
         "price": 19600
       },
       {
+        "desc": "X.Redmi Note 14 Pro 12/512Gb Ocean Blue RU",
+        "price": 19800
+      },
+      {
         "desc": "X.Redmi Note 14 Pro 8/256 Black EU",
         "price": 16500
       },
       {
         "desc": "X.Redmi Note 14 Pro 8/256 Blue EU",
         "price": 16500
-      },
-      {
-        "desc": "X.Redmi Note 14 Pro 8/256 Purple RU",
-        "price": 16500
-      },
-      {
-        "desc": "X.Redmi Note 14 Pro Plus 12/512Gb Midnight Black 5G EU",
-        "price": 26000
       },
       {
         "desc": "X.Redmi Note 14 Pro Plus 8/256Gb Midnight Black 5G EU",
@@ -3290,12 +3090,12 @@
         "price": 18000
       },
       {
-        "desc": "X.Redmi Note 14S 12/512 Blue RU",
+        "desc": "X.Redmi Note 14S 12/512 Blue EU",
         "price": 18000
       },
       {
-        "desc": "X.Redmi Note 14S 8/256 Black RU",
-        "price": 15000
+        "desc": "X.Redmi Note 14S 12/512 Blue RU",
+        "price": 18000
       },
       {
         "desc": "X.Redmi Note 14S 8/256 Blue RU",
@@ -3320,6 +3120,10 @@
     ],
     "ZTE": [
       {
+        "desc": "ZTE Nubia Flip 12/512 Black EU",
+        "price": 32500
+      },
+      {
         "desc": "ZTE Nubia RM 10S Pro 5G 16/512 Dask (Black)",
         "price": 63500
       },
@@ -3330,10 +3134,6 @@
       {
         "desc": "ZTE Nubia Z60S Pro 16/1tb Black",
         "price": 38500
-      },
-      {
-        "desc": "ZTE Nubia Z70S Ultra 16/512 Black EU",
-        "price": 59000
       },
       {
         "desc": "ZTE Nubia Z70 Ultra 16/512Gb Yellow EU",
@@ -3442,10 +3242,6 @@
         "price": 7900
       },
       {
-        "desc": "колонка JBL Flip 7 черная",
-        "price": 7900
-      },
-      {
         "desc": "колонка JBL Go 4 Black",
         "price": 3000
       },
@@ -3536,6 +3332,10 @@
         "price": 3900
       },
       {
+        "desc": "колонка Яндекс Макс Zigbee-бирюзовый(Бирюзовый)",
+        "price": 24500
+      },
+      {
         "desc": "колонка Яндекс Макс Zigbee-зелёная",
         "price": 24500
       },
@@ -3549,6 +3349,10 @@
       },
       {
         "desc": "колонка Яндекс Макс Дуо Zigbee-красная",
+        "price": 31600
+      },
+      {
+        "desc": "колонка Яндекс Макс Дуо Zigbee-черная",
         "price": 31600
       },
       {
