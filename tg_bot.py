@@ -204,16 +204,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # Правила классификации категорий и брендов (обновлено)
 # -------------------------------------------------------------------
 
+
 # Каждый элемент: (Категория, [список ключевых слов в нижнем регистре])
 # Порядок — чем выше, тем выше приоритет.
 CATEGORY_KEYWORDS: list[tuple[str, list[str]]] = [
+    # Воздухоочистители
+    ("Воздухоочистители", [
+        "очиститель воздуха", "воздухоочиститель", "purifier"
+    ]),
     # Отдельные специфичные категории → приоритет выше
     ("Телефоны противоударные", [
         "blackview", "doogee", "oukitel", "unihertz", "rugged", "armor", "tank", "cyber", "mega"
     ]),
     ("Телефоны кнопочные", ["nokia", "f+", "button phone", "feature phone"]),
     ("Игровые консоли", [
-        "playstation", "ps4", "ps5", "xbox", "switch", "steam deck",
+        "playstation", "ps4", "ps5", "xbox", "switch", "steam deck", "steamdeck",
         "джойстик", "игровая консоль", "игровая приставка",
         # VR-устройства
         "oculus", "quest", "vr", "vr headset", "vr шлем", "meta quest"
@@ -481,6 +486,28 @@ def extract_category(description: str) -> tuple[str, str]:
     category = "Другое"
     subcategory = "Общее"
 
+    # 1. Воздухоочистители (бренды: Xiaomi, Dyson, Philips, Sharp, Boneco, Levoit)
+    if any(x in desc_low for x in ["очиститель воздуха", "воздухоочиститель", "purifier"]):
+        for kw, brand in [
+            ("xiaomi", "Xiaomi"),
+            ("dyson", "Dyson"),
+            ("philips", "Philips"),
+            ("sharp", "Sharp"),
+            ("boneco", "Boneco"),
+            ("levoit", "Levoit")
+        ]:
+            if kw in desc_low:
+                return "Воздухоочистители", brand
+        return "Воздухоочистители", "Общее"
+
+    # 2. Игровые консоли: SteamDeck как отдельный бренд
+    if "steam deck" in desc_low or "steamdeck" in desc_low:
+        return "Игровые консоли", "SteamDeck"
+
+    # 3. Исключить Mi TV Box из телефонов/Xiaomi
+    if ("mi tv box" in desc_low or "xiaomi tv box" in desc_low) and ("телефон" in desc_low or "xiaomi" in desc_low):
+        return "Другое", "Общее"
+
 
     # --- 1. Наушники (приоритет: явное слово, AirPods, EarPods, Buds, Earphones, Earbuds, гарнитура, даже если есть type-c, usb-c и т.д.) ---
     headphones_pattern = r"\b(наушник|наушники|airpods|air pods|air pod|earpods|ear pods|ear pod|earphones|earphone|earbuds|earbud|buds|гарнитура)\b"
@@ -574,10 +601,16 @@ def extract_category(description: str) -> tuple[str, str]:
     if re.search(r"mate", desc_low) and not re.search(r"matebook", desc_low):
         return "Телефоны", "Huawei"
     # Смартфоны по брендам и ключевым словам
+    # Исключить Mi TV Box из телефонов/Xiaomi (ещё раз для надёжности)
+    if ("mi tv box" in desc_low or "xiaomi tv box" in desc_low):
+        return "Другое", "Общее"
     phone_kw = ["iphone", "смартфон", "smartphone", "galaxy", "pixel", "zenfone", "oneplus", "realme", "zte", "redmi", "poco", "xiaomi", "samsung", "huawei", "honor"]
     if any(re.search(rf"(?<![а-яa-z0-9]){re.escape(kw)}(?![а-яa-z0-9])", desc_low) for kw in phone_kw):
         for kw, brand in BRAND_KEYWORDS.items():
             if kw in desc_low:
+                # Исключить Mi TV Box из телефонов/Xiaomi
+                if brand == "Xiaomi" and ("mi tv box" in desc_low or "xiaomi tv box" in desc_low):
+                    return "Другое", "Общее"
                 return "Телефоны", brand
         return "Телефоны", "Общее"
 
