@@ -915,6 +915,56 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         q = raw.lower()
         q = re.sub(r'([a-zа-яё])(\d)', r'\1 \2', q)
         q = re.sub(r'(\d)([a-zа-яё])', r'\1 \2', q)
+        
+        # 2.1) СПЕЦ-СЛУЧАЙ: «macbook» и его вариации → только Ноутбуки / Apple
+        mac = q.replace(" ", "")
+        if mac.startswith("macbook"):
+            full_catalog = get_full_catalog(context)
+            # собираем ВСЕ товары из Ноутбуки / Apple
+            results = [
+                ("Ноутбуки", "Apple", item)
+                for item in full_catalog
+                    .get("Ноутбуки", {})
+                    .get("Apple", [])
+            ]
+            if not results:
+                await update.message.reply_text("Ничего не найдено по вашему запросу.")
+                return
+
+            # выведем их сразу, обходя остальную логику
+            await update.message.reply_text(f"Найдено позиций: {len(results)}")
+            back_markup = InlineKeyboardMarkup(
+                [[InlineKeyboardButton("← Назад", callback_data="back|root")]]
+            )
+            # формируем строки и разбиваем на чанки
+            lines = []
+            for cat, sub, item in results:
+                desc = html.escape(item["desc"])
+                price = str(item.get("price","")).strip()
+                line = f"<b>{desc}</b>"
+                if price:
+                    line += f" — <i>{html.escape(price)} ₽</i>"
+                line += f"\n<i>{cat} / {sub}</i>"
+                lines.extend([line, ""])
+
+            MAX_LEN = 4000
+            chunks, cur = [], ""
+            for l in lines:
+                seg = l + "\n"
+                if len(cur) + len(seg) > MAX_LEN and cur:
+                    chunks.append(cur)
+                    cur = seg
+                else:
+                    cur += seg
+            if cur:
+                chunks.append(cur)
+
+            for idx, chunk in enumerate(chunks):
+                if idx == len(chunks) - 1:
+                    await update.message.reply_text(chunk, parse_mode="HTML", reply_markup=back_markup)
+                else:
+                    await update.message.reply_text(chunk, parse_mode="HTML")
+            return
 
         full_catalog = get_full_catalog(context)
         if not full_catalog:
