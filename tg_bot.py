@@ -6,6 +6,7 @@ import json
 import html
 from pathlib import Path
 from dotenv import load_dotenv
+from telegram.constants import ParseMode
 load_dotenv()
 
 import pandas as pd
@@ -170,7 +171,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "manualprod_cat",
         "manualprod_brand",
         "manualprod_select_map",
-        "manualprod_del_map"
+        "manualprod_del_map",
+        "change_step",
+        "change_cat",
+        "change_sub",
+        "change_indices",
+        "new_cat"
     ]:
         context.user_data.pop(key, None)
         
@@ -456,23 +462,30 @@ async def edit_admins_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Команда /help — выводит информацию о связи с менеджером."""
     help_text = (
-        "📦 Как оформить заказ:\n\n"
+        "📦 <b>Как оформить заказ:</b>\n\n"
         "Нажмите «💬 Заказать товар у менеджера»\n\n"
-        "В сообщении укажите точную модель товара, который вас интересует (например:  (скопировать один вариант из ассортимента типа MacBook Pro 16 M4, 24/512, Black)\n\n"
-        "Мы подтвердим наличие и зарезервируем товар за вами\n\n"
-        "🚚 Доставка по Москве:\n\n"
-        "В пределах МКАД — от 1 000 ₽\n"
+        "<b>В сообщении укажите</b> точную модель товара, который вас интересует "
+        "(например: <i>MacBook Pro 16 M4, 24/512, Black</i>)\n\n"
+        "Мы подтвердим наличие и <b>зарезервируем</b> товар за вами\n\n"
+        "🚚 <b>Доставка по Москве:</b>\n\n"
+        "В пределах МКАД — от <b>1 000 ₽</b>\n"
         "За МКАД (до 30 км) — по договорённости\n\n"
-        "🛍 Самовывоз — бесплатно:\n\n"
-        "Заказы, оформленные до 13:00, можно получить в тот же день\n"
-        "После 13:00 — на следующий день\n\n"
-        "🕒 Выдача заказов:\n"
-        "⏰ Ежедневно с 15:00 до 16:00\n"
-        "📍 Адрес: ТЦ Рубин, Багратионовский проезд, 7к2\n"
-        "(5 минут пешком от метро Багратионовская)"
+        "🛍 <b>Самовывоз — бесплатно:</b>\n\n"
+        "Заказы, оформленные до <b>13:00</b>, можно получить в тот же день\n"
+        "После <b>13:00</b> — на следующий день\n\n"
+        "🕒 <b>Выдача заказов:</b>\n"
+        "⏰ Ежедневно с <b>15:00</b> до <b>16:00</b>\n"
+        "📍 Адрес: <b>ТЦ Рубин, Багратионовский проезд, 7к2</b>\n"
+        "(5 минут пешком от метро <i>Багратионовская</i>)"
     )
-    back_markup = InlineKeyboardMarkup([[InlineKeyboardButton(text="← Назад", callback_data="back|root")]])
-    await update.message.reply_text(help_text, reply_markup=back_markup)
+    back_markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton(text="← Назад", callback_data="back|root")]
+    ])
+    await update.message.reply_text(
+        help_text,
+        reply_markup=back_markup,
+        parse_mode=ParseMode.HTML
+    )
 
 
 import re
@@ -729,6 +742,35 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         cat, sub = extract_category(desc)
         catalog.setdefault(cat, {}).setdefault(sub, []).append({"desc": desc, "price": price})
 
+    # ——— Удаляем из авто-каталога все товары, которые уже лежат в manual_categories ———
+    manual = context.application.bot_data.get("manual_categories")
+    if manual is None:
+        manual = _load_manual_categories()
+
+    # Собираем сет идентификаторов moved-items (desc, price)
+    manual_set = {
+        (mi["desc"], str(mi["price"]))
+        for brands in manual.values()
+        for sublist in brands.values()
+        for mi in sublist
+    }
+
+    # Проходим по всему auto-catalog и фильтруем
+    for cat in list(catalog.keys()):
+        for sub in list(catalog[cat].keys()):
+            filtered = [
+                item for item in catalog[cat][sub]
+                if (item["desc"], str(item["price"])) not in manual_set
+            ]
+            if filtered:
+                catalog[cat][sub] = filtered
+            else:
+                # если после фильтрации пусто — удаляем подкатегорию
+                del catalog[cat][sub]
+        if not catalog[cat]:
+            # и пустые категории
+            del catalog[cat]
+
     if not catalog:
         await update.message.reply_text("Не удалось сформировать категории по описанию.")
         return
@@ -751,6 +793,8 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработка текстовых сообщений и нажатий на кнопки меню."""
+    import re
+
     text = update.message.text
     user_id = update.effective_user.id if update.effective_user else None
     is_admin_user = user_id and is_admin(user_id)
@@ -763,6 +807,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await update.message.reply_text("Нет прав для добавления.")
             context.user_data.pop("manualcat_step", None)
             return
+
         if step == 1:
             # Получили название категории
             cat = text.strip()
@@ -773,6 +818,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             context.user_data["manualcat_step"] = 2
             await update.message.reply_text("Введите название бренда (подкатегории):")
             return
+
         elif step == 2:
             # Получили название бренда
             brand = text.strip()
@@ -782,15 +828,50 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             context.user_data["manualcat_brand"] = brand
             context.user_data["manualcat_step"] = 3
             await update.message.reply_text(
-                "Введите описание товара и цену.\nКаждая строка: Описание;Цена\n"
+                "Введите описание товара и цену.\nКаждая строка: Описание;Цена\n\n Для создания пустой категории введите '0'.\n\n"
             )
             context.user_data["manualcat_items"] = []
             return
+
         elif step == 3:
+                        # ——— Если ввели "0" — создаём пустую категорию и выходим ———
+            if text.strip() == "0":
+                cat = context.user_data.pop("manualcat_category")
+                brand = context.user_data.pop("manualcat_brand")
+                context.user_data.pop("manualcat_step", None)
+
+                # Загрузить или инициализировать manual_categories
+                manual_cats = context.application.bot_data.get("manual_categories")
+                if manual_cats is None:
+                    manual_cats = _load_manual_categories()
+
+                # Создать пустой список товаров в новой подкатегории
+                manual_cats.setdefault(cat, {})[brand] = []
+                context.application.bot_data["manual_categories"] = manual_cats
+                _save_manual_categories(manual_cats)
+
+                # Ответить администратору
+                buttons = [
+                    [InlineKeyboardButton("Добавить ещё", callback_data="manualcat_add")],
+                    [InlineKeyboardButton("← Назад", callback_data="manualcat_remove")]
+                ]
+                markup = InlineKeyboardMarkup(buttons)
+                await update.message.reply_text(
+                    f"✅ Создана пустая категория: <b>{cat}</b> / <i>{brand}</i>.\n\n"
+                    "Теперь вы можете добавить в неё товары или перенести что-то позже.",
+                    reply_markup=markup,
+                    parse_mode="HTML"
+                )
+                return
+            
             # Получаем товары (многострочно, до 'Готово')
             if text.strip().lower() == "готово":
-                await update.message.reply_text("Пожалуйста, отправьте список товаров (каждая строка: Описание;Цена). Если хотите отменить — используйте /start.")
+                await update.message.reply_text(
+                    "Пожалуйста, отправьте список товаров (каждая строка: Описание;Цена). "
+                    "Если хотите отменить — используйте /start."
+                )
                 return
+
             # Ожидаем список товаров, каждая строка: Описание;Цена
             lines = [line for line in text.splitlines() if line.strip()]
             items = []
@@ -803,10 +884,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 if not desc or not price:
                     continue
                 items.append({"desc": desc, "price": price})
+
             if items:
                 cat = context.user_data.pop("manualcat_category")
                 brand = context.user_data.pop("manualcat_brand")
                 context.user_data.pop("manualcat_step", None)
+
                 # Сохраняем в manual_categories.json
                 manual_cats = context.application.bot_data.get("manual_categories")
                 if manual_cats is None:
@@ -814,6 +897,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 manual_cats.setdefault(cat, {}).setdefault(brand, []).extend(items)
                 context.application.bot_data["manual_categories"] = manual_cats
                 _save_manual_categories(manual_cats)
+
                 # Показываем обновлённый список вручную добавленных категорий
                 lines = []
                 for c, brands in manual_cats.items():
@@ -825,58 +909,104 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     [InlineKeyboardButton("Удалить", callback_data="manualcat_remove")],
                 ]
                 markup = InlineKeyboardMarkup(buttons)
-                await update.message.reply_text(f"Добавлено в {cat} / {brand}: {len(items)} позиций.\n\n{msg}", reply_markup=markup, parse_mode="HTML")
+                await update.message.reply_text(
+                    f"Добавлено в {cat} / {brand}: {len(items)} позиций.\n\n{msg}",
+                    reply_markup=markup,
+                    parse_mode="HTML"
+                )
             else:
                 await update.message.reply_text(
                     "Не удалось добавить ни одного товара. Проверьте формат: Описание;Цена."
                 )
             return
-    
-        # --- 0.2. Обработка шагов добавления товаров в существующую подкатегорию ---
-    if context.user_data.get("manualprod_step"):
-        step = context.user_data["manualprod_step"]
-        user_id = update.effective_user.id if update.effective_user else None
-        if not user_id or not is_admin(user_id):
-            await update.message.reply_text("Нет прав для изменения товаров.")
+
+    # --- 0.2. Обработка шагов добавления товаров в существующую подкатегорию ---
+    if context.user_data.get("manualprod_step") and context.user_data["manualprod_step"] == 1:
+        # Сбор введённых строк при добавлении товаров
+        text_in = update.message.text
+        if text_in.strip().lower() == "готово":
+            await update.message.reply_text(
+                "Добавление отменено или завершено неверно. Начните заново."
+            )
             context.user_data.pop("manualprod_step", None)
             return
 
-        # Сбор введённых строк
-        if step == 1:
-            text = update.message.text
-            if text.strip().lower() == "готово":
-                await update.message.reply_text("Добавление отменено или завершено неверно. Начните заново.")
-                context.user_data.pop("manualprod_step", None)
-                return
+        lines = [l for l in text_in.splitlines() if l.strip()]
+        items = []
+        for line in lines:
+            parts = line.split(";")
+            if len(parts) < 2:
+                continue
+            desc, price = parts[0].strip(), parts[1].strip()
+            if desc and price:
+                items.append({"desc": desc, "price": price})
 
-            lines = [l for l in text.splitlines() if l.strip()]
-            items = []
-            for line in lines:
-                parts = line.split(";")
-                if len(parts) < 2:
-                    continue
-                desc, price = parts[0].strip(), parts[1].strip()
-                if desc and price:
-                    items.append({"desc": desc, "price": price})
-            if items:
-                cat = context.user_data.pop("manualprod_cat")
-                brand = context.user_data.pop("manualprod_brand")
-                context.user_data.pop("manualprod_step", None)
-                manual_cats = context.application.bot_data.get("manual_categories", {}) or {}
-                manual_cats.setdefault(cat, {}).setdefault(brand, []).extend(items)
-                _save_manual_categories(manual_cats)
-                context.application.bot_data["manual_categories"] = manual_cats
-                await update.message.reply_text(
-                    f"Добавлено в {cat} / {brand}: {len(items)} позиций."
-                )
+        if items:
+            cat = context.user_data.pop("manualprod_cat")
+            brand = context.user_data.pop("manualprod_brand")
+            context.user_data.pop("manualprod_step", None)
+
+            manual_cats = context.application.bot_data.get("manual_categories") or _load_manual_categories()
+            manual_cats.setdefault(cat, {}).setdefault(brand, []).extend(items)
+            _save_manual_categories(manual_cats)
+            context.application.bot_data["manual_categories"] = manual_cats
+
+            await update.message.reply_text(
+                f"Добавлено в {cat} / {brand}: {len(items)} позиций."
+            )
+        else:
+            await update.message.reply_text(
+                "Не удалось разобрать ни одну строку. Проверьте формат: Описание;Цена."
+            )
+        return
+
+    # --- Шаг удаления товаров по вводимым номерам ---
+    if context.user_data.get("manualprod_step") == "awaiting_manualprod_delete":
+        raw = update.message.text.strip()
+        parts = re.split(r"[,\s]+", raw)
+        idxs = set()
+        for part in parts:
+            if "-" in part:
+                a, b = map(int, part.split("-", 1))
+                idxs.update(range(a, b + 1))
             else:
-                await update.message.reply_text(
-                    "Не удалось разобрать ни одну строку. Проверьте формат: Описание;Цена."
-                )
-            return
+                idxs.add(int(part))
 
+        # Переводим в 0-based и сортируем по убыванию, чтобы удалять корректно
+        indices = sorted({i - 1 for i in idxs if i > 0}, reverse=True)
 
-    # --- 0.1. Ожидание ввода user_id для добавления/удаления админа ---
+        # Достаём контекст
+        cat = context.user_data.pop("manualprod_cat", None)
+        brand = context.user_data.pop("manualprod_brand", None)
+        context.user_data.pop("manualprod_step", None)
+
+        manual = context.application.bot_data.get("manual_categories", {}) or _load_manual_categories()
+        items = manual.get(cat, {}).get(brand, [])
+
+        removed = []
+        for i in indices:
+            if 0 <= i < len(items):
+                removed.append(items.pop(i))
+
+        # Сохраняем изменения
+        _save_manual_categories(manual)
+        context.application.bot_data["manual_categories"] = manual
+
+        if removed:
+            lines = []
+            for it in removed:
+                d = html.escape(it.get("desc", ""))
+                p = html.escape(str(it.get("price", "")))
+                lines.append(f"— {d} ({p})")
+            await update.message.reply_text(
+                "<b>Удалено товаров:</b> {}\n\n{}".format(len(removed), "\n".join(lines)),
+                parse_mode=ParseMode.HTML
+            )
+        else:
+            await update.message.reply_text("Ничего не удалено (неверные номера).")
+        return
+
+    # --- 0.3. Ожидание ввода user_id для добавления/удаления админа ---
     if context.user_data.get("awaiting_admin_action"):
         action = context.user_data.pop("awaiting_admin_action")
         user_id = update.effective_user.id if update.effective_user else None
@@ -885,9 +1015,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             return
         try:
             target_id = int(text.strip())
-        except Exception:
+        except ValueError:
             await update.message.reply_text("user_id должен быть числом.")
             return
+
         admins = _load_admins()
         if action == "add":
             admins.add(target_id)
@@ -897,17 +1028,14 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             if target_id in admins:
                 admins.remove(target_id)
                 _save_admins(admins)
-                await update.message.reply_text(f"Пользователь {target_id} удалён из администраторов.")
+                await update.message.reply_text(f"Пользователь {target_id} удалён из администраторов.")
             else:
                 await update.message.reply_text("Такого пользователя нет в списке админов.")
         return
 
     # --- 1. Обработка режима поиска ---
-    if context.user_data.get("awaiting_search"):
-        # 1) Снимаем флаг
-        context.user_data["awaiting_search"] = False
-
-        # 2) Нормализуем запрос
+    if context.user_data.pop("awaiting_search", False):
+        # 1) Нормализуем запрос
         raw = (text or "").strip()
         if not raw:
             await update.message.reply_text("Пустой запрос. Попробуйте ещё раз.")
@@ -915,32 +1043,28 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         q = raw.lower()
         q = re.sub(r'([a-zа-яё])(\d)', r'\1 \2', q)
         q = re.sub(r'(\d)([a-zа-яё])', r'\1 \2', q)
-        
+
         # 2.1) СПЕЦ-СЛУЧАЙ: «macbook» и его вариации → только Ноутбуки / Apple
         mac = q.replace(" ", "")
         if mac.startswith("macbook"):
             full_catalog = get_full_catalog(context)
-            # собираем ВСЕ товары из Ноутбуки / Apple
             results = [
                 ("Ноутбуки", "Apple", item)
-                for item in full_catalog
-                    .get("Ноутбуки", {})
-                    .get("Apple", [])
+                for item in full_catalog.get("Ноутбуки", {}).get("Apple", [])
             ]
             if not results:
                 await update.message.reply_text("Ничего не найдено по вашему запросу.")
                 return
 
-            # выведем их сразу, обходя остальную логику
             await update.message.reply_text(f"Найдено позиций: {len(results)}")
             back_markup = InlineKeyboardMarkup(
                 [[InlineKeyboardButton("← Назад", callback_data="back|root")]]
             )
-            # формируем строки и разбиваем на чанки
+
             lines = []
             for cat, sub, item in results:
                 desc = html.escape(item["desc"])
-                price = str(item.get("price","")).strip()
+                price = str(item.get("price", "")).strip()
                 line = f"<b>{desc}</b>"
                 if price:
                     line += f" — <i>{html.escape(price)} ₽</i>"
@@ -948,7 +1072,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 lines.extend([line, ""])
 
             MAX_LEN = 4000
-            chunks, cur = [], ""
+            chunks = []
+            cur = ""
             for l in lines:
                 seg = l + "\n"
                 if len(cur) + len(seg) > MAX_LEN and cur:
@@ -973,8 +1098,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
         # 3) Собираем результаты
         results: list[tuple[str, str, dict]] = []
-
-        # 3a) Поиск по бренду (точное совпадение подкатегории)
         brand_subs = {sub.lower() for subs in full_catalog.values() for sub in subs}
         if q in brand_subs:
             for cat, subs in full_catalog.items():
@@ -983,7 +1106,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                         for item in items:
                             results.append((cat, sub, item))
         else:
-            # 3b) Поиск по категории (exact or startswith, например «ноутбук»/«ноутбуки»)
             matched_cats = [
                 cat for cat in full_catalog
                 if cat.lower() == q or cat.lower().startswith(q) or q.startswith(cat.lower())
@@ -994,7 +1116,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                         for item in items:
                             results.append((cat, sub, item))
             else:
-                # 3c) Обычный поиск по описанию
                 for cat, subs in full_catalog.items():
                     for sub, items in subs.items():
                         for item in items:
@@ -1008,12 +1129,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await update.message.reply_text("Ничего не найдено по вашему запросу.")
             return
 
-        # 4) Выводим количество найденных позиций
         await update.message.reply_text(f"Найдено позиций: {len(results)}")
-        back_markup = InlineKeyboardMarkup([[InlineKeyboardButton(text="← Назад", callback_data="back|root")]])
+        back_markup = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("← Назад", callback_data="back|root")]]
+        )
 
-        # 5) Формируем строки для отправки
-        lines: list[str] = []
+        lines = []
         for cat, sub, item in results:
             desc = html.escape(str(item["desc"]))
             price = str(item.get("price", "")).strip()
@@ -1023,9 +1144,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             line += f"\n<i>{cat} / {sub}</i>"
             lines.extend([line, ""])
 
-        # 6) Разбиваем на чанки по 4000 символов
         MAX_LEN = 4000
-        chunks: list[str] = []
+        chunks = []
         current = ""
         for l in lines:
             segment = l + "\n"
@@ -1037,7 +1157,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if current:
             chunks.append(current)
 
-        # 7) Отправляем все чанки
         for idx, chunk in enumerate(chunks):
             if idx == len(chunks) - 1:
                 await update.message.reply_text(chunk, parse_mode="HTML", reply_markup=back_markup)
@@ -1045,24 +1164,49 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 await update.message.reply_text(chunk, parse_mode="HTML")
         return
 
+    # --- Шаг 3.1: парсим номера строк для переноса ---
+    if context.user_data.get("change_step") == "awaiting_selection":
+        raw = update.message.text.strip()
+        parts = re.split(r"[,\s]+", raw)
+        idxs = set()
+        for part in parts:
+            if "-" in part:
+                a, b = map(int, part.split("-", 1))
+                idxs.update(range(a, b + 1))
+            else:
+                idxs.add(int(part))
+
+        indices = sorted({i - 1 for i in idxs})
+        context.user_data["change_indices"] = [i for i in indices if i >= 0]
+        context.user_data["change_step"] = "awaiting_new_cat"
+
+        full = get_full_catalog(context)
+        buttons = [[InlineKeyboardButton(cat, callback_data=f"newcat|{cat}")] for cat in full.keys()]
+        await update.message.reply_text(
+            "Выберите **новую** категорию:",
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+
     # --- 2. Обработка нажатий на основные кнопки ---
     if text == BTN_ADMIN_PANEL and is_admin_user:
-        # Показываем админ-панель с кнопками (без кнопки "Назад")
         admin_buttons = [
-            [InlineKeyboardButton("Добавить каталог (.xlsx)", callback_data="adminpanel_add_catalog")],
-            [InlineKeyboardButton("Управление категориями", callback_data="adminpanel_edit_category")],
-            [InlineKeyboardButton("Управление товарами", callback_data="adminpanel_edit_products")],
-            [InlineKeyboardButton("Управление администраторами", callback_data="adminpanel_edit_admins")],
+            [InlineKeyboardButton("📥 Добавить каталог (.xlsx)", callback_data="adminpanel_add_catalog")],
+            [InlineKeyboardButton("🗂️ Управление категориями", callback_data="adminpanel_edit_category")],
+            [InlineKeyboardButton("📦 Управление товарами", callback_data="adminpanel_edit_products")],
+            [InlineKeyboardButton("🔀 Изменить категорию товаров", callback_data="adminpanel_change_category")],
+            [InlineKeyboardButton("👤 Управление администраторами", callback_data="adminpanel_edit_admins")],
         ]
         markup = InlineKeyboardMarkup(admin_buttons)
         await update.message.reply_text("Админ-панель:", reply_markup=markup)
         return
 
     if text == BTN_SEARCH_CATALOG:
-        # Запрашиваем поисковый запрос
         context.user_data["awaiting_search"] = True
         await update.message.reply_text("Введите поисковый запрос по каталогу:")
         return
+
     if text == BTN_CHOOSE_CATEGORY:
         full_catalog = get_full_catalog(context)
         if full_catalog:
@@ -1070,22 +1214,29 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             for cat_name in _sort_categories(list(full_catalog.keys())):
                 subdict = full_catalog[cat_name]
                 count = sum(len(items) for items in subdict.values())
-                buttons.append([InlineKeyboardButton(text=f"{cat_name} ({count})", callback_data=f"cat|{cat_name}")])
+                buttons.append([InlineKeyboardButton(
+                    text=f"{cat_name} ({count})",
+                    callback_data=f"cat|{cat_name}"
+                )])
             markup = InlineKeyboardMarkup(buttons)
             await update.message.reply_text("Выберите категорию:", reply_markup=markup)
         else:
             await update.message.reply_text("Каталог пока не загружен. Пожалуйста, попробуйте позже.")
-    elif text == BTN_CONTACT_MANAGER:
-        # Кнопки с ссылками на менеджера
+        return
+
+    if text == BTN_CONTACT_MANAGER:
         link_btn_tg = InlineKeyboardButton("Написать менеджеру в Телеграм", url=MANAGER_TELEGRAM_LINK)
         link_btn_wa = InlineKeyboardButton("Написать менеджеру в WhatsApp", url=MANAGER_WHATSAPP_LINK)
         await update.message.reply_text(
             "Выберите удобный способ связи с нашим менеджером:",
             reply_markup=InlineKeyboardMarkup([[link_btn_tg], [link_btn_wa]]),
         )
-    elif text == BTN_GET_EXCEL:
-        # Формируем объединённый Excel-файл на лету
+        return
+
+    if text == BTN_GET_EXCEL:
         import pandas as pd
+        import tempfile
+
         full_catalog = get_full_catalog(context)
         rows = []
         for cat, subdict in full_catalog.items():
@@ -1097,40 +1248,41 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                         "Описание": item.get("desc", ""),
                         "Цена": item.get("price", "")
                     })
+
         if not rows:
             await update.message.reply_text("Каталог пуст.")
             return
+
         df = pd.DataFrame(rows)
-        # Сохраняем во временный файл
-        import tempfile
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
         df.to_excel(tmp.name, index=False)
         tmp.close()
+
         try:
-            await update.message.reply_document(document=open(tmp.name, "rb"), filename="catalog.xlsx")
+            await update.message.reply_document(
+                document=open(tmp.name, "rb"),
+                filename="catalog.xlsx"
+            )
         except Exception as exc:
             await update.message.reply_text(f"Не удалось отправить файл: {exc}")
         finally:
             os.remove(tmp.name)
+        return
 
-    elif text == BTN_SUBSCRIBE:
+    if text == BTN_SUBSCRIBE:
         subs: set[int] = context.application.bot_data.setdefault("subscribers", set())
-        user_id = update.effective_user.id if update.effective_user else None
         if user_id:
             subs.add(user_id)
             await update.message.reply_text("Спасибо! Вы подписаны на обновления.")
         else:
             await update.message.reply_text("Не удалось выполнить подписку.")
+        return
 
     # --- 3. Обработка неизвестных сообщений ---
-    else:
-        # Если сообщение не распознано, отвечаем пользователю и показываем меню
-        await update.message.reply_text(
-            "Извините, я вас не понял. Пожалуйста, выберите действие из меню ниже.",
-            reply_markup=get_main_menu_markup(is_admin_user),
-        )
-
-
+    await update.message.reply_text(
+        "Извините, я вас не понял. Пожалуйста, выберите действие из меню ниже.",
+        reply_markup=get_main_menu_markup(is_admin_user),
+    )
 
 async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -1197,6 +1349,108 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
         await edit_admins_command(update, context)
         await query.answer()
         return
+    
+        # --- Новая функция: Изменить категорию товаров ---
+    if data == "adminpanel_change_category":
+        # Шаг 1: выбор исходной категории из автокаталога
+        catalog = context.application.bot_data.get("catalog", {})
+        if not catalog:
+            await query.answer("Каталог не загружен.", show_alert=True)
+            return
+        buttons = [
+            [InlineKeyboardButton(f"{cat} ({sum(len(v) for v in subs.values())})", callback_data=f"change|cat|{cat}")]
+            for cat, subs in catalog.items()
+        ]
+        buttons.append([InlineKeyboardButton("← Назад", callback_data="adminpanel_back")])
+        await query.edit_message_text(
+            "Выберите **исходную** категорию товаров для изменения:",
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+
+    # Шаг 2: после нажатия change|cat|<категория> — выбор подкатегории
+    if data.startswith("change|cat|"):
+        _, _, cat = data.split("|", 2)
+        context.user_data["change_step"] = "choose_subcat"
+        context.user_data["change_cat"] = cat
+        subs = context.application.bot_data["catalog"].get(cat, {})
+        buttons = [
+            [InlineKeyboardButton(f"{sub} ({len(items)})", callback_data=f"change|sub|{cat}|{sub}")]
+            for sub, items in subs.items()
+        ]
+        buttons.append([InlineKeyboardButton("← Назад", callback_data="adminpanel_change_category")])
+        await query.edit_message_text(
+            f"Категория: *{cat}*\nВыберите подкатегорию:",
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+
+    # Шаг 3: после on change|sub|<cat>|<sub> — показываем список товаров, ждём ввода номеров
+    if data.startswith("change|sub|"):
+        _, _, cat, sub = data.split("|", 3)
+        items = context.application.bot_data["catalog"][cat][sub]
+        if not items:
+            await query.edit_message_text("В этой подкатегории нет товаров.")
+            return
+        # Формируем нумерованный список
+        lines = [f"{i+1}. {it['desc']} — {it['price']}" for i,it in enumerate(items)]
+        msg = f"*Исходная группа:* {cat} / {sub}\n\n" + "\n".join(lines)
+        await query.edit_message_text(
+            msg + "\n\n_Напишите номера строк для переноса (например: 1-3,5):_",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        context.user_data["change_step"] = "awaiting_selection"
+        context.user_data["change_sub"] = sub
+        return
+    
+        # --- Шаг 4: выбор новой категории ---
+    if data.startswith("newcat|") and context.user_data.get("change_step") == "awaiting_new_cat":
+        _, new_cat = data.split("|",1)
+        context.user_data["new_cat"] = new_cat
+        full = get_full_catalog(context)
+        subs = full.get(new_cat, {})
+        buttons = [
+            [InlineKeyboardButton(f"{sub} ({len(items)})", callback_data=f"newsub|{new_cat}|{sub}")]
+            for sub, items in subs.items()
+        ]
+        await query.edit_message_text(
+            f"*Новая категория:* {new_cat}\nВыберите подкатегорию:",
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+
+    # --- Шаг 5: выбор новой подкатегории и перенос ---
+    if data.startswith("newsub|") and context.user_data.get("change_step") == "awaiting_new_cat":
+        _, new_cat, new_sub = data.split("|",2)
+        # Достаём из user_data
+        orig_cat = context.user_data.pop("change_cat")
+        orig_sub = context.user_data.pop("change_sub")
+        indices = context.user_data.pop("change_indices")
+        # Переносим
+        auto_cat = context.application.bot_data["catalog"]
+        orig_list = auto_cat[orig_cat][orig_sub]
+        moved = [orig_list[i] for i in indices if 0 <= i < len(orig_list)]
+        # Удаляем из автокаталога
+        auto_cat[orig_cat][orig_sub] = [it for idx,it in enumerate(orig_list) if idx not in indices]
+        _save_catalog_to_disk(auto_cat)
+        # Добавляем в manual_categories
+        manual = context.application.bot_data.get("manual_categories") or _load_manual_categories()
+        manual.setdefault(new_cat, {}).setdefault(new_sub, []).extend(moved)
+        _save_manual_categories(manual)
+        context.application.bot_data["manual_categories"] = manual
+        # Завершаем
+        context.user_data.pop("change_step", None)
+        await query.edit_message_text(
+            f"✅ Перенесено {len(moved)} позиций из *{orig_cat}/{orig_sub}* → *{new_cat}/{new_sub}*",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+
+
+    
     # --- Обработка кнопок для управления вручную добавленными категориями ---
     if data == "manualcat_add":
         context.user_data["manualcat_step"] = 1
@@ -1317,7 +1571,7 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             lines = ["<b>Текущие товары:</b>"]
             for idx, it in enumerate(items, start=1):
                 desc = html.escape(it.get("desc", ""))
-                price = html.escape(it.get("price", ""))
+                price = html.escape(str(it.get("price", "")))
                 lines.append(f"{idx}. {desc} — {price}")
             lines.append("")  # пустая строка перед кнопками
         else:
@@ -1346,7 +1600,7 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
         )
         return
 
-    # --- Начало удаления товаров: показываем список текущих позиций ---
+       # --- Начало удаления товаров: ввод номеров строк ---
     if data == "manualprod_remove":
         cat = context.user_data.get("manualprod_cat")
         brand = context.user_data.get("manualprod_brand")
@@ -1356,19 +1610,20 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             await query.edit_message_text("Товаров для удаления нет.")
             return
 
-        # Построим кнопки для каждого товара
-        cb_map = {}
-        buttons = []
-        for idx, item in enumerate(items):
-            cb_key = f"manualprod_del|{idx}"
-            desc = item.get("desc", "")[:30].replace("\n"," ")
-            buttons.append([InlineKeyboardButton(f"{idx+1}. {desc}", callback_data=cb_key)])
-            cb_map[cb_key] = idx
-        context.user_data["manualprod_del_map"] = cb_map
+        # Формируем нумерованный список
+        lines = []
+        for idx, it in enumerate(items, start=1):
+            desc = html.escape(it.get("desc", ""))
+            price = html.escape(str(it.get("price", "")))
+            lines.append(f"{idx}. {desc} — {price}")
+        text = "<b>Товары для удаления:</b>\n\n" + "\n".join(lines)
         await query.edit_message_text(
-            "Выберите товар для удаления:",
-            reply_markup=InlineKeyboardMarkup(buttons)
+            text + "\n\nНапишите номера строк для удаления (например: 1-3,5):",
+            parse_mode=ParseMode.HTML
         )
+
+        # Переходим к шагу парсинга
+        context.user_data["manualprod_step"] = "awaiting_manualprod_delete"
         return
 
     # --- Удаление выбранного товара ---
