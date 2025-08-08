@@ -4,6 +4,7 @@ import asyncio
 import tempfile
 import json
 import html
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from pathlib import Path
 from dotenv import load_dotenv
 from telegram.constants import ParseMode
@@ -109,6 +110,33 @@ PREFERRED_CATEGORY_ORDER: list[str] = [
     "Планшеты",
     "Ноутбуки",
 ]
+
+def make_admin_panel_markup() -> InlineKeyboardMarkup:
+    buttons = [
+        [InlineKeyboardButton("📥 Добавить каталог (.xlsx)", callback_data="adminpanel_add_catalog")],
+        [InlineKeyboardButton("🗂️ Управление категориями",    callback_data="adminpanel_edit_category")],
+        [InlineKeyboardButton("📦 Управление товарами",       callback_data="adminpanel_edit_products")],
+        [InlineKeyboardButton("🔀 Изменить категорию товаров",      callback_data="adminpanel_change_category")],
+        [InlineKeyboardButton("👤 Управление администраторами", callback_data="adminpanel_edit_admins")],
+    ]
+    return InlineKeyboardMarkup(buttons)
+
+async def show_admin_panel(update_or_query, context):
+    """
+    Отправляет админ-панель как новое сообщение.
+    update_or_query может быть и Update, и CallbackQuery.
+    """
+    chat_id = (
+        update_or_query.effective_chat.id
+        if hasattr(update_or_query, "effective_chat")
+        else update_or_query.message.chat.id
+    )
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text="🛠️ <b>Админ-панель</b>:",
+        reply_markup=make_admin_panel_markup(),
+        parse_mode="HTML"
+    )
 
 
 def _sort_categories(cat_names: list[str]) -> list[str]:
@@ -862,6 +890,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     reply_markup=markup,
                     parse_mode="HTML"
                 )
+                await show_admin_panel(update, context)
                 return
             
             # Получаем товары (многострочно, до 'Готово')
@@ -914,6 +943,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     reply_markup=markup,
                     parse_mode="HTML"
                 )
+                await show_admin_panel(update, context)
             else:
                 await update.message.reply_text(
                     "Не удалось добавить ни одного товара. Проверьте формат: Описание;Цена."
@@ -954,6 +984,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await update.message.reply_text(
                 f"Добавлено в {cat} / {brand}: {len(items)} позиций."
             )
+            await show_admin_panel(update, context)
         else:
             await update.message.reply_text(
                 "Не удалось разобрать ни одну строку. Проверьте формат: Описание;Цена."
@@ -1002,6 +1033,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 "<b>Удалено товаров:</b> {}\n\n{}".format(len(removed), "\n".join(lines)),
                 parse_mode=ParseMode.HTML
             )
+            await show_admin_panel(update, context)
         else:
             await update.message.reply_text("Ничего не удалено (неверные номера).")
         return
@@ -1447,6 +1479,7 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             f"✅ Перенесено {len(moved)} позиций из *{orig_cat}/{orig_sub}* → *{new_cat}/{new_sub}*",
             parse_mode=ParseMode.MARKDOWN
         )
+        await show_admin_panel(update, context)
         return
 
 
@@ -1500,6 +1533,7 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
                 context.application.bot_data["manual_categories"] = manual_cats
                 _save_manual_categories(manual_cats)
                 await query.edit_message_text(f"Удалено: {cat} / {brand}")
+                await show_admin_panel(update, context)
             else:
                 await query.edit_message_text("Категория/бренд не найдены.")
         else:
@@ -1544,6 +1578,7 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
                 admins.remove(target_id)
                 _save_admins(admins)
                 await query.edit_message_text(f"Пользователь {target_id} удалён из администраторов.")
+                await show_admin_panel(update, context)
             else:
                 await query.edit_message_text("Такого пользователя нет в списке админов.")
         return
@@ -1643,6 +1678,7 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             _save_manual_categories(manual_cats)
             context.application.bot_data["manual_categories"] = manual_cats
             await query.edit_message_text(f"Удалён товар: {deleted.get('desc')} — {deleted.get('price')}")
+            await show_admin_panel(update, context)
         else:
             await query.edit_message_text("Некорректный индекс.")
         return
@@ -1650,7 +1686,7 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
 
     full_catalog = get_full_catalog(context)
     if not full_catalog:
-        await query.edit_message_text("Каталог не найден. Загрузите файл командой /add.")
+        await query.edit_message_text("Каталог не найден. Загрузите файл командой /add_catalog.")
         return
 
     if parts[0] == "cat":  # Выбрана категория
