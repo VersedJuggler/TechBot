@@ -55,6 +55,23 @@ def is_admin(user_id: int) -> bool:
 # Основные файлы для хранения
 CATALOG_FILE = "catalog_data.json"
 LATEST_EXCEL_FILE = "latest_catalog.xlsx"
+MOVED_OVERRIDES_FILE = "moved_overrides.json"
+def _load_moved_overrides() -> dict:
+    if os.path.exists(MOVED_OVERRIDES_FILE):
+        try:
+            with open(MOVED_OVERRIDES_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def _save_moved_overrides(overrides: dict) -> None:
+    try:
+        with open(MOVED_OVERRIDES_FILE, "w", encoding="utf-8") as f:
+            json.dump(overrides, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
 MANUAL_CATEGORIES_FILE = "manual_categories.json"
 def _load_manual_categories() -> dict:
     if os.path.exists(MANUAL_CATEGORIES_FILE):
@@ -71,6 +88,8 @@ def _save_manual_categories(manual_cats: dict) -> None:
             json.dump(manual_cats, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
+    
+    
 
 # Названия кнопок главного меню
 BTN_CHOOSE_CATEGORY = "🗂️ Выбор категории"
@@ -114,9 +133,8 @@ PREFERRED_CATEGORY_ORDER: list[str] = [
 def make_admin_panel_markup() -> InlineKeyboardMarkup:
     buttons = [
         [InlineKeyboardButton("📥 Добавить каталог (.xlsx)", callback_data="adminpanel_add_catalog")],
-        [InlineKeyboardButton("🗂️ Управление категориями",    callback_data="adminpanel_edit_category")],
-        [InlineKeyboardButton("📦 Управление товарами",       callback_data="adminpanel_edit_products")],
-        [InlineKeyboardButton("🔀 Изменить категорию товаров",      callback_data="adminpanel_change_category")],
+        [InlineKeyboardButton("🔀 Изменить категорию товаров", callback_data="adminpanel_change_category")],
+        [InlineKeyboardButton("📝 Ручные (manual)", callback_data="adminpanel_manual_root")],
         [InlineKeyboardButton("👤 Управление администраторами", callback_data="adminpanel_edit_admins")],
     ]
     return InlineKeyboardMarkup(buttons)
@@ -166,15 +184,25 @@ def _load_catalog_from_disk() -> dict | None:
     return None
 
 def get_full_catalog(context) -> dict:
-    """Объединяет основной каталог и manual_categories для вывода и поиска."""
+    """Объединяет основной каталог, перенесённые товары и manual_categories для вывода и поиска."""
     catalog = context.application.bot_data.get("catalog") or {}
+    moved = context.application.bot_data.get("moved_overrides") or {}
     manual = context.application.bot_data.get("manual_categories") or {}
-    # Глубокое копирование, чтобы не портить оригиналы
+
     import copy
+    # Глубокое копирование, чтобы не портить оригиналы
     full = copy.deepcopy(catalog)
+
+    # Сначала добавляем перенесённые товары (moved_overrides)
+    for cat, brands in moved.items():
+        for brand, items in brands.items():
+            full.setdefault(cat, {}).setdefault(brand, []).extend(copy.deepcopy(items))
+
+    # Затем вручную добавленные товары (manual_categories)
     for cat, brands in manual.items():
         for brand, items in brands.items():
-            full.setdefault(cat, {}).setdefault(brand, []).extend(items)
+            full.setdefault(cat, {}).setdefault(brand, []).extend(copy.deepcopy(items))
+
     return full
 
 
@@ -204,7 +232,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "change_cat",
         "change_sub",
         "change_indices",
-        "new_cat"
+        "new_cat",
+        "manualprice_step",
+        "manualprice_cat",
+        "manualprice_brand",
+        "manualprice_indices",
+        "manualprice_select_map",
     ]:
         context.user_data.pop(key, None)
         
@@ -253,9 +286,12 @@ CATEGORY_KEYWORDS: list[tuple[str, list[str]]] = [
     ("Телефоны кнопочные", ["nokia", "f+", "button phone", "feature phone"]),
     ("Игровые консоли", [
         "playstation", "ps4", "ps5", "xbox", "switch", "steam deck", "steamdeck",
-        "джойстик", "игровая консоль", "игровая приставка",
-        # VR-устройства
-        "oculus", "quest", "vr", "vr headset", "vr шлем", "meta quest"
+        "джойстик", "игровая консоль", "игровая приставка"
+    ]),
+    ("VR-гарнитуры", [
+    "vr", "vr шлем", "vr-шлем", "vr headset", "virtual reality",
+    "oculus", "quest", "meta quest", "vive", "htc vive", "pico",
+    "valve index", "reverb", "hp reverb", "ps vr", "psvr", "psvr2", "ps vr2"
     ]),
     (
         "Экшен-камеры",
@@ -303,6 +339,36 @@ CATEGORY_KEYWORDS: list[tuple[str, list[str]]] = [
     ("Аксессуары", [
         "сзу", "сетевое зарядное устройство", "кабель", "переходник", "pencil", "keyboard", "mouse",
         "adapter", "magsafe", "беспроводная зарядка", "powerbank", "power bank", "чехол", "case", "cover"
+    ]),
+        ("Камеры видеонаблюдения", [
+        "видеонаблюдени", "ip-камера", "ip камера", "cctv",
+        "security camera", "ezviz", "hikvision", "dahua",
+        "imou", "reolink", "wifi камера", "wi-fi камера", "tapo",
+        "домашняя камера", "камера наблюдения"
+    ]),
+    ("Грили", [
+        "гриль", "грили", "грильница", "электрогриль",
+        "газовый гриль", "угольный гриль"
+    ]),
+    ("Квадрокоптеры", [
+        "квадрокоптер", "квадрокоптеры", "коптер", "дрон",
+        "drone", "quadcopter", "fpv", "mavic", "phantom", "air 2s", "mini 3", "mini 4"
+    ]),
+    ("Электроинструменты", [
+        "шуруповерт", "шуруповёрт", "дрель", "перфоратор", "болгарка",
+        "углошлифовальная", "лобзик", "пила", "шлифмашина", "фрезер",
+        "реноватор", "сабельная пила", "гайковерт", "гайковёрт", "штроборез"
+    ]),
+    ("Бритвы, триммеры", [
+        "бритва", "электробритва", "триммер", "машинка для стрижки",
+        "шейвер", "shaver", "groom"
+    ]),
+    ("Эпиляторы", [
+        "эпилятор", "фотоэпилятор", "ipl", "лазерная эпиляция"
+    ]),
+    ("Зубные щетки", [
+        "зубная щетка", "зубные щетки", "электрическая щетка",
+        "oral-b", "oral b", "sonicare", "oclean", "soocas", "щетка зубная", "щётка"
     ]),
 ]
 
@@ -356,11 +422,67 @@ BRAND_KEYWORDS: dict[str, str] = {
     "osmo": "DJI",
     "insta": "Insta360",
     "insta360": "Insta360",
-    # VR / Игровые консоли
+    # VR 
     "oculus": "Oculus",
     "quest": "Oculus",
-}
+    "meta": "Meta",
+    "htc": "HTC",
+    "vive": "HTC",
+    "pico": "Pico",
+    "valve": "Valve",
+    "valve index": "Valve",
+    "hp": "HP",
+    "reverb": "HP",         # HP Reverb
+    "playstation": "SONY",  # чтобы PS VR/PS VR2 получили бренд SONY
+    
+    # Камеры видеонаблюдения
+    "hikvision": "Hikvision",
+    "dahua": "Dahua",
+    "ezviz": "EZVIZ",
+    "imou": "IMOU",
+    "reolink": "Reolink",
+    "tapo": "TP-Link Tapo",
+    "tp-link": "TP-Link",
+    "tplink": "TP-Link",
 
+    # Квадрокоптеры
+    "autel": "Autel",
+    "hubsan": "Hubsan",
+    "syma": "Syma",
+    "parrot": "Parrot",
+
+    # Электроинструменты
+    "bosch": "Bosch",
+    "makita": "Makita",
+    "dewalt": "DeWALT",
+    "de walt": "DeWALT",
+    "metabo": "Metabo",
+    "ryobi": "Ryobi",
+
+    # Грили
+    "weber": "Weber",
+    "tefal": "Tefal",
+    "redmond": "REDMOND",
+    "kitfort": "Kitfort",
+    "polaris": "Polaris",
+    "george foreman": "George Foreman",
+
+    # Бритвы, триммеры
+    "philips": "Philips",
+    "braun": "Braun",
+    "panasonic": "Panasonic",
+    "remington": "Remington",
+
+    # Эпиляторы
+    "rowenta": "Rowenta",
+
+    # Зубные щетки
+    "oral-b": "Oral-B",
+    "oral b": "Oral-B",
+    "sonicare": "Philips",
+    "oclean": "Oclean",
+    "soocas": "SOOCAS",
+}
 
 
 # --- Новая команда: /add_catalog ---
@@ -514,6 +636,21 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         reply_markup=back_markup,
         parse_mode=ParseMode.HTML
     )
+
+async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Команда /about — краткая информация о магазине + кнопка Назад."""
+    text = (
+        "<b>V&amp;P Tech</b> — оригинальная техника и электроника по низким ценам.\n"
+        "📦 Всё в наличии, с гарантией.\n"
+        "🚚 В Москве — доставка или самовывоз в день заказа.\n"
+        "📬 По России — отправляем СДЭК, Яндекс, Почтой.\n"
+        "✅ Работаем давно.\n"
+        "💬 Нужна помощь? Менеджер всегда на связи!"
+    )
+    back_markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton(text="← Назад", callback_data="back|root")]
+    ])
+    await update.message.reply_text(text, reply_markup=back_markup, parse_mode=ParseMode.HTML)
 
 
 import re
@@ -670,12 +807,68 @@ def extract_category(description: str) -> tuple[str, str]:
                 return "Телефоны противоударные", brand
         return "Телефоны противоударные", "Общее"
 
-    # --- 9. Игровые консоли и VR ---
-    if re.search(r"playstation|ps4|ps5|xbox|switch|steam deck|джойстик|игровая консоль|игровая приставка|oculus|quest|vr|vr headset|vr шлем|meta quest", desc_low):
+    # --- НОВОЕ: VR-гарнитуры ---
+    if re.search(r"(?:\bvr\b|vr-?шлем|vr\s?headset|virtual\s+reality|meta\s?quest|oculus|quest(?:\s?(?:2|3|pro))?|htc\s?vive|(?:^|\b)vive\b|pico|valve\s?index|hp\s?reverb|reverb\s?g2|ps\s?vr2?|psvr2?)", desc_low):
+        for kw, brand in BRAND_KEYWORDS.items():
+            if kw in desc_low:
+                return "VR-гарнитуры", brand
+        return "VR-гарнитуры", "Общее"
+    
+    # --- 9. Игровые консоли (без VR) ---
+    if re.search(r"playstation|ps4|ps5|xbox|switch|steam deck|steamdeck|джойстик|игровая консоль|игровая приставка", desc_low):
         for kw, brand in BRAND_KEYWORDS.items():
             if kw in desc_low:
                 return "Игровые консоли", brand
         return "Игровые консоли", "Общее"
+    
+        # --- НОВОЕ: Камеры видеонаблюдения ---
+    if re.search(r"(видеонаблюдени|ip[-\s]?камера|cctv|security camera|wi-?fi\s?камера|домашняя камера|ezviz|hikvision|dahua|imou|reolink|tapo)", desc_low):
+        for kw, brand in BRAND_KEYWORDS.items():
+            if kw in desc_low:
+                return "Камеры видеонаблюдения", brand
+        return "Камеры видеонаблюдения", "Общее"
+
+    # --- НОВОЕ: Квадрокоптеры ---
+    if re.search(r"\b(квадро?коптеры?|коптер|дрон|drone|quadcopter|fpv)\b", desc_low):
+        for kw, brand in BRAND_KEYWORDS.items():
+            if kw in desc_low:
+                return "Квадрокоптеры", brand
+        return "Квадрокоптеры", "Общее"
+
+    # --- НОВОЕ: Грили ---
+    if re.search(r"\b(гриль|грили|грильница|электрогриль|газовый гриль|угольный гриль)\b", desc_low):
+        for kw, brand in BRAND_KEYWORDS.items():
+            if kw in desc_low:
+                return "Грили", brand
+        return "Грили", "Общее"
+
+    # --- НОВОЕ: Электроинструменты ---
+    if re.search(r"\b(шуруповёрт|шуруповерт|дрель|перфоратор|болгарка|углошлифовальная|лобзик|пила|шлифмашин|фрезер|реноватор|сабельная пила|гайковёрт|гайковерт|штроборез)\b", desc_low):
+        for kw, brand in BRAND_KEYWORDS.items():
+            if kw in desc_low:
+                return "Электроинструменты", brand
+        return "Электроинструменты", "Общее"
+
+    # --- НОВОЕ: Бритвы, триммеры ---
+    if re.search(r"\b(бритва|электробритва|триммер|машинка для стрижки|шейвер|shaver|groom)\b", desc_low):
+        for kw, brand in BRAND_KEYWORDS.items():
+            if kw in desc_low:
+                return "Бритвы, триммеры", brand
+        return "Бритвы, триммеры", "Общее"
+
+    # --- НОВОЕ: Эпиляторы ---
+    if re.search(r"\b(эпилятор|фотоэпилятор|ipl|лазерн\w*\sэпиляц\w*)\b", desc_low):
+        for kw, brand in BRAND_KEYWORDS.items():
+            if kw in desc_low:
+                return "Эпиляторы", brand
+        return "Эпиляторы", "Общее"
+
+    # --- НОВОЕ: Зубные щетки ---
+    if re.search(r"(зубн\w*\sщ(е|ё)тка|электрическ\w*\sщ(е|ё)тка|oral-?b|sonicare|oclean|soocas)", desc_low):
+        for kw, brand in BRAND_KEYWORDS.items():
+            if kw in desc_low:
+                return "Зубные щетки", brand
+        return "Зубные щетки", "Общее"
 
     # --- 10. Экшен-камеры ---
     if re.search(r"gopro|osmo action|insta360|insta 360|dji|hero", desc_low):
@@ -718,7 +911,7 @@ def extract_category(description: str) -> tuple[str, str]:
     return category, subcategory
 
 
-async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None: 
     """При получении документа проверяем, что это .xlsx, скачиваем и обрабатываем."""
     user_id = update.effective_user.id if update.effective_user else None
     awaiting_file = context.user_data.get("awaiting_file")
@@ -770,34 +963,79 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         cat, sub = extract_category(desc)
         catalog.setdefault(cat, {}).setdefault(sub, []).append({"desc": desc, "price": price})
 
-    # ——— Удаляем из авто-каталога все товары, которые уже лежат в manual_categories ———
-    manual = context.application.bot_data.get("manual_categories")
-    if manual is None:
-        manual = _load_manual_categories()
+    # === СИНХРОНИЗАЦИЯ ПЕРЕНЕСЁННЫХ (moved_overrides) С EXCEL И УБОРКА ДУБЛЕЙ ===
+    def _norm_desc(s: str) -> str:
+        import re as _re
+        return _re.sub(r"\s+", " ", str(s or "").strip().lower())
 
-    # Собираем сет идентификаторов moved-items (desc, price)
-    manual_set = {
-        (mi["desc"], str(mi["price"]))
-        for brands in manual.values()
+    # 1) Карта "нормализованное описание -> цена" из Excel
+    excel_price_by_desc: dict[str, str] = {}
+    for _, row in df.iterrows():
+        d = str(row.get("description") or row.get("desription") or "")
+        p = row.get("price") or row.get("Цена") or row.get("Price") or ""
+        excel_price_by_desc[_norm_desc(d)] = p
+
+    # 2) Обновляем цены в moved_overrides и удаляем те, которых больше нет в Excel
+    overrides = context.application.bot_data.get("moved_overrides")
+    if overrides is None:
+        overrides = _load_moved_overrides()
+
+    changed = False
+    to_del_cats = []
+    for cat, brands in list(overrides.items()):
+        to_del_brands = []
+        for brand, items in list(brands.items()):
+            new_items = []
+            for it in items:
+                key = _norm_desc(it.get("desc", ""))
+                if key in excel_price_by_desc:
+                    new_price = excel_price_by_desc[key]
+                    if str(it.get("price", "")) != str(new_price):
+                        it["price"] = new_price
+                        changed = True
+                    new_items.append(it)
+                else:
+                    # Позиции больше нет в Excel -> удаляем из перенесённых
+                    changed = True
+            if new_items:
+                overrides[cat][brand] = new_items
+            else:
+                to_del_brands.append(brand)
+        for b in to_del_brands:
+            del overrides[cat][b]
+        if not overrides.get(cat):
+            to_del_cats.append(cat)
+    for c in to_del_cats:
+        del overrides[c]
+
+    if changed:
+        _save_moved_overrides(overrides)
+        context.application.bot_data["moved_overrides"] = overrides
+
+    # 3) Убираем из авто-каталога все позиции, что уже есть в moved_overrides ИЛИ manual_categories
+    manual = context.application.bot_data.get("manual_categories") or _load_manual_categories()
+
+    occupied_descs = {
+        _norm_desc(mi.get("desc", ""))
+        for source in (overrides, manual)
+        for brands in source.values()
         for sublist in brands.values()
         for mi in sublist
     }
 
-    # Проходим по всему auto-catalog и фильтруем
-    for cat in list(catalog.keys()):
-        for sub in list(catalog[cat].keys()):
+    for cat_key in list(catalog.keys()):
+        for sub_key in list(catalog[cat_key].keys()):
             filtered = [
-                item for item in catalog[cat][sub]
-                if (item["desc"], str(item["price"])) not in manual_set
+                item for item in catalog[cat_key][sub_key]
+                if _norm_desc(item.get("desc", "")) not in occupied_descs
             ]
             if filtered:
-                catalog[cat][sub] = filtered
+                catalog[cat_key][sub_key] = filtered
             else:
-                # если после фильтрации пусто — удаляем подкатегорию
-                del catalog[cat][sub]
-        if not catalog[cat]:
-            # и пустые категории
-            del catalog[cat]
+                del catalog[cat_key][sub_key]
+        if not catalog.get(cat_key):
+            del catalog[cat_key]
+    # === КОНЕЦ СИНХРОНИЗАЦИИ ===
 
     if not catalog:
         await update.message.reply_text("Не удалось сформировать категории по описанию.")
@@ -826,6 +1064,69 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     text = update.message.text
     user_id = update.effective_user.id if update.effective_user else None
     is_admin_user = user_id and is_admin(user_id)
+
+    # --- Изменение цен: шаг 1 — ввод номеров строк ---
+    if context.user_data.get("manualprice_step") == "awaiting_indices":
+        raw = (text or "").strip()
+        parts = re.split(r"[,\s]+", raw)
+        idxs = set()
+        try:
+            for part in parts:
+                if not part:
+                    continue
+                if "-" in part:
+                    a, b = map(int, part.split("-", 1))
+                    if a > b:
+                        a, b = b, a
+                    idxs.update(range(a, b + 1))
+                else:
+                    idxs.add(int(part))
+        except Exception:
+            await update.message.reply_text("Некорректный формат. Пример: 1-3,5")
+            return
+    
+        indices = sorted({i - 1 for i in idxs if i > 0})
+        if not indices:
+            await update.message.reply_text("Не выбраны строки. Укажите номера, например: 1-3,5")
+            return
+    
+        context.user_data["manualprice_indices"] = indices
+        context.user_data["manualprice_step"] = "awaiting_price"
+        await update.message.reply_text("Введите новую цену (одно значение будет применено ко всем выбранным товарам):")
+        return
+    
+    # --- Изменение цен: шаг 2 — ввод новой цены и сохранение ---
+    if context.user_data.get("manualprice_step") == "awaiting_price":
+        new_price = (text or "").strip()
+        if not new_price:
+            await update.message.reply_text("Цена не может быть пустой. Введите новое значение.")
+            return
+    
+        cat = context.user_data.pop("manualprice_cat", None)
+        brand = context.user_data.pop("manualprice_brand", None)
+        indices = context.user_data.pop("manualprice_indices", [])
+        context.user_data.pop("manualprice_step", None)
+    
+        manual = context.application.bot_data.get("manual_categories", {}) or _load_manual_categories()
+        items = manual.get(cat, {}).get(brand, [])
+    
+        updated = 0
+        for i in indices:
+            if 0 <= i < len(items):
+                items[i]["price"] = new_price
+                items[i]["price_locked"] = True
+                updated += 1
+    
+        _save_manual_categories(manual)
+        context.application.bot_data["manual_categories"] = manual
+    
+        await update.message.reply_text(f"✅ Обновлено цен: {updated} шт. в {cat} / {brand}.")
+        # вернёмся в админ-панель (если у вас уже есть вспомогательная функция)
+        try:
+            await show_admin_panel(update, context)
+        except NameError:
+            pass
+        return
 
     # --- 0.1. Пошаговое добавление вручную категории/бренда/товаров ---
     if context.user_data.get("manualcat_step"):
@@ -912,7 +1213,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 price = parts[1].strip()
                 if not desc or not price:
                     continue
-                items.append({"desc": desc, "price": price})
+                items.append({"desc": desc, "price": price, "price_locked": True, "origin": "manual"})
 
             if items:
                 cat = context.user_data.pop("manualcat_category")
@@ -969,7 +1270,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 continue
             desc, price = parts[0].strip(), parts[1].strip()
             if desc and price:
-                items.append({"desc": desc, "price": price})
+                items.append({"desc": desc, "price": price, "price_locked": True, "origin": "manual"})
 
         if items:
             cat = context.user_data.pop("manualprod_cat")
@@ -1198,36 +1499,52 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     # --- Шаг 3.1: парсим номера строк для переноса ---
     if context.user_data.get("change_step") == "awaiting_selection":
-        raw = update.message.text.strip()
+        raw = (update.message.text or "").strip()
+        import re
         parts = re.split(r"[,\s]+", raw)
         idxs = set()
-        for part in parts:
-            if "-" in part:
-                a, b = map(int, part.split("-", 1))
-                idxs.update(range(a, b + 1))
-            else:
-                idxs.add(int(part))
+        try:
+            for part in parts:
+                if not part:
+                    continue
+                if "-" in part:
+                    a, b = map(int, part.split("-", 1))
+                    if a > b:
+                        a, b = b, a
+                    idxs.update(range(a, b + 1))
+                else:
+                    idxs.add(int(part))
+        except Exception:
+            await update.message.reply_text("Некорректный формат. Пример: 1-3,6")
+            return
 
-        indices = sorted({i - 1 for i in idxs})
-        context.user_data["change_indices"] = [i for i in indices if i >= 0]
+        zero_based = sorted({i - 1 for i in idxs if i > 0})
+        sel_map = context.user_data.get("change_selection_map") or []
+        picks = []
+        for i in zero_based:
+            if 0 <= i < len(sel_map):
+                picks.append(sel_map[i])
+
+        if not picks:
+            await update.message.reply_text("Ничего не выбрано. Укажите корректные номера.")
+            return
+
+        # сохраняем конкретные выбранные элементы (источник + индекс + desc/price для надёжного совпадения)
+        context.user_data["change_picks"] = picks
+    
+        # Переходим к выбору новой категории (из полного каталога)
         context.user_data["change_step"] = "awaiting_new_cat"
-
         full = get_full_catalog(context)
         buttons = [[InlineKeyboardButton(cat, callback_data=f"newcat|{cat}")] for cat in full.keys()]
-        await update.message.reply_text(
-            "Выберите **новую** категорию:",
-            reply_markup=InlineKeyboardMarkup(buttons),
-            parse_mode=ParseMode.MARKDOWN
-        )
+        await update.message.reply_text("Выберите <b>новую</b> категорию:", reply_markup=InlineKeyboardMarkup(buttons), parse_mode=ParseMode.HTML)
         return
 
     # --- 2. Обработка нажатий на основные кнопки ---
     if text == BTN_ADMIN_PANEL and is_admin_user:
         admin_buttons = [
             [InlineKeyboardButton("📥 Добавить каталог (.xlsx)", callback_data="adminpanel_add_catalog")],
-            [InlineKeyboardButton("🗂️ Управление категориями", callback_data="adminpanel_edit_category")],
-            [InlineKeyboardButton("📦 Управление товарами", callback_data="adminpanel_edit_products")],
             [InlineKeyboardButton("🔀 Изменить категорию товаров", callback_data="adminpanel_change_category")],
+            [InlineKeyboardButton("📝 Ручные (manual)", callback_data="adminpanel_manual_root")],
             [InlineKeyboardButton("👤 Управление администраторами", callback_data="adminpanel_edit_admins")],
         ]
         markup = InlineKeyboardMarkup(admin_buttons)
@@ -1319,6 +1636,16 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     data = query.data or ""
+
+    if data == "adminpanel_manual_root":
+        submenu = [
+            [InlineKeyboardButton("🗂️ Управление категориями", callback_data="adminpanel_edit_category")],
+            [InlineKeyboardButton("📦 Управление товарами", callback_data="adminpanel_edit_products")],
+            [InlineKeyboardButton("💲 Изменить цены", callback_data="adminpanel_edit_prices")],
+            [InlineKeyboardButton("← Назад", callback_data="adminpanel_back")],
+        ]
+        await query.edit_message_text("Раздел «Ручные (manual_categories.json)»:", reply_markup=InlineKeyboardMarkup(submenu))
+        return
     # --- Обработка кнопок админ-панели ---
     if data == "adminpanel_back":
         # Вернуться в главное меню
@@ -1382,59 +1709,95 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
         await query.answer()
         return
     
-        # --- Новая функция: Изменить категорию товаров ---
+    # --- Новая функция: Изменить категорию товаров ---
     if data == "adminpanel_change_category":
-        # Шаг 1: выбор исходной категории из автокаталога
-        catalog = context.application.bot_data.get("catalog", {})
-        if not catalog:
-            await query.answer("Каталог не загружен.", show_alert=True)
+        user_id = query.from_user.id
+        if not is_admin(user_id):
+            await query.answer("Извините, команда доступна только администратору.", show_alert=True)
             return
-        buttons = [
-            [InlineKeyboardButton(f"{cat} ({sum(len(v) for v in subs.values())})", callback_data=f"change|cat|{cat}")]
-            for cat, subs in catalog.items()
-        ]
-        buttons.append([InlineKeyboardButton("← Назад", callback_data="adminpanel_back")])
-        await query.edit_message_text(
-            "Выберите **исходную** категорию товаров для изменения:",
-            reply_markup=InlineKeyboardMarkup(buttons),
-            parse_mode=ParseMode.MARKDOWN
-        )
+
+        full = get_full_catalog(context)
+        if not full:
+            await query.edit_message_text("Каталог пуст.")
+            return
+
+        # Кнопки категорий с общим количеством позиций (auto + moved + manual)
+        buttons = []
+        for cat_name in _sort_categories(list(full.keys())):
+            subdict = full.get(cat_name, {})
+            count = sum(len(items) for items in subdict.values())
+            buttons.append([InlineKeyboardButton(f"{cat_name} ({count})", callback_data=f"change|cat|{cat_name}")])
+
+        context.user_data["change_step"] = "awaiting_cat"
+        await query.edit_message_text("Выберите категорию, из которой переносим:", reply_markup=InlineKeyboardMarkup(buttons))
         return
 
     # Шаг 2: после нажатия change|cat|<категория> — выбор подкатегории
     if data.startswith("change|cat|"):
         _, _, cat = data.split("|", 2)
-        context.user_data["change_step"] = "choose_subcat"
+
+        # Сохраняем исходную категорию
         context.user_data["change_cat"] = cat
-        subs = context.application.bot_data["catalog"].get(cat, {})
-        buttons = [
-            [InlineKeyboardButton(f"{sub} ({len(items)})", callback_data=f"change|sub|{cat}|{sub}")]
-            for sub, items in subs.items()
-        ]
-        buttons.append([InlineKeyboardButton("← Назад", callback_data="adminpanel_change_category")])
-        await query.edit_message_text(
-            f"Категория: *{cat}*\nВыберите подкатегорию:",
-            reply_markup=InlineKeyboardMarkup(buttons),
-            parse_mode=ParseMode.MARKDOWN
-        )
+        context.user_data["change_step"] = "awaiting_sub"
+
+        auto   = (context.application.bot_data.get("catalog") or {}).get(cat, {}) or {}
+        moved  = (context.application.bot_data.get("moved_overrides") or {}).get(cat, {}) or {}
+        manual = (context.application.bot_data.get("manual_categories") or {}).get(cat, {}) or {}
+
+        # Объединяем подкатегории и считаем общее количество
+        all_subs = sorted(set(auto.keys()) | set(moved.keys()) | set(manual.keys()))
+        if not all_subs:
+            await query.edit_message_text("В этой категории пока нет подкатегорий.")
+            return
+
+        buttons = []
+        for sub in all_subs:
+            cnt = len(auto.get(sub, [])) + len(moved.get(sub, [])) + len(manual.get(sub, []))
+            buttons.append([InlineKeyboardButton(f"{sub} ({cnt})", callback_data=f"change|sub|{cat}|{sub}")])
+
+        await query.edit_message_text(f"Категория: {cat}\nВыберите подкатегорию:", reply_markup=InlineKeyboardMarkup(buttons))
         return
+
 
     # Шаг 3: после on change|sub|<cat>|<sub> — показываем список товаров, ждём ввода номеров
     if data.startswith("change|sub|"):
         _, _, cat, sub = data.split("|", 3)
-        items = context.application.bot_data["catalog"][cat][sub]
-        if not items:
+
+        context.user_data["change_cat"] = cat
+        context.user_data["change_sub"] = sub
+        context.user_data["change_step"] = "awaiting_selection"
+
+        auto_list   = (context.application.bot_data.get("catalog") or {}).get(cat, {}).get(sub, []) or []
+        moved_list  = (context.application.bot_data.get("moved_overrides") or {}).get(cat, {}).get(sub, []) or []
+        manual_list = (context.application.bot_data.get("manual_categories") or {}).get(cat, {}).get(sub, []) or []
+
+        # Строим объединённый вывод и map "номер -> источник"
+        lines = [f"<b>{cat} / {sub}</b>", "Выберите строки для переноса (например: 1-3,6)", ""]
+        selection_map = []  # список словарей: {"src": "auto|moved|manual", "idx": int, "desc": str, "price": str}
+
+        idx = 1
+        def _add_block(title, src, lst):
+            nonlocal idx, lines, selection_map
+            if lst:
+                lines.append(f"<i>{title}</i>")
+                for i, it in enumerate(lst):
+                    d = html.escape(str(it.get("desc", "")))
+                    p = html.escape(str(it.get("price", "")))
+                    lines.append(f"{idx}. {d} — {p}")
+                    selection_map.append({"src": src, "idx": i, "desc": str(it.get("desc","")), "price": str(it.get("price",""))})
+                    idx += 1
+                lines.append("")
+
+        _add_block("Авто-каталог", "auto", auto_list)
+        _add_block("Перенесённые", "moved", moved_list)
+        _add_block("Ручные", "manual", manual_list)
+
+        if not selection_map:
             await query.edit_message_text("В этой подкатегории нет товаров.")
             return
-        # Формируем нумерованный список
-        lines = [f"{i+1}. {it['desc']} — {it['price']}" for i,it in enumerate(items)]
-        msg = f"*Исходная группа:* {cat} / {sub}\n\n" + "\n".join(lines)
-        await query.edit_message_text(
-            msg + "\n\n_Напишите номера строк для переноса (например: 1-3,5):_",
-            parse_mode=ParseMode.MARKDOWN
-        )
-        context.user_data["change_step"] = "awaiting_selection"
-        context.user_data["change_sub"] = sub
+
+        context.user_data["change_selection_map"] = selection_map
+        await query.edit_message_text("\n".join(lines), parse_mode=ParseMode.HTML)
         return
     
         # --- Шаг 4: выбор новой категории ---
@@ -1456,32 +1819,160 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
 
     # --- Шаг 5: выбор новой подкатегории и перенос ---
     if data.startswith("newsub|") and context.user_data.get("change_step") == "awaiting_new_cat":
-        _, new_cat, new_sub = data.split("|",2)
-        # Достаём из user_data
-        orig_cat = context.user_data.pop("change_cat")
-        orig_sub = context.user_data.pop("change_sub")
-        indices = context.user_data.pop("change_indices")
-        # Переносим
-        auto_cat = context.application.bot_data["catalog"]
-        orig_list = auto_cat[orig_cat][orig_sub]
-        moved = [orig_list[i] for i in indices if 0 <= i < len(orig_list)]
-        # Удаляем из автокаталога
-        auto_cat[orig_cat][orig_sub] = [it for idx,it in enumerate(orig_list) if idx not in indices]
-        _save_catalog_to_disk(auto_cat)
-        # Добавляем в manual_categories
-        manual = context.application.bot_data.get("manual_categories") or _load_manual_categories()
-        manual.setdefault(new_cat, {}).setdefault(new_sub, []).extend(moved)
-        _save_manual_categories(manual)
-        context.application.bot_data["manual_categories"] = manual
-        # Завершаем
+        _, new_cat, new_sub = data.split("|", 2)
+    
+        # Откуда переносим
+        src_cat = context.user_data.pop("change_cat")
+        src_sub = context.user_data.pop("change_sub")
+        picks   = context.user_data.pop("change_picks", [])
+        context.user_data.pop("change_selection_map", None)
         context.user_data.pop("change_step", None)
+    
+        auto_cat = context.application.bot_data.get("catalog") or {}
+        overrides = context.application.bot_data.get("moved_overrides") or _load_moved_overrides()
+        manual    = context.application.bot_data.get("manual_categories") or _load_manual_categories()
+    
+        moved_cnt = 0
+    
+        # Утилита: безопасное удаление конкретного элемента по desc+price
+        def _remove_by_desc_price(lst, desc, price):
+            for j, it in enumerate(lst):
+                if str(it.get("desc","")) == desc and str(it.get("price","")) == price:
+                    lst.pop(j)
+                    return True
+            return False
+    
+        # 1) Обрабатываем авто-товары: auto -> moved_overrides (с orig_cat/sub)
+        auto_list = auto_cat.get(src_cat, {}).get(src_sub, [])
+        for pick in [p for p in picks if p["src"] == "auto"]:
+            desc, price = pick["desc"], pick["price"]
+            if _remove_by_desc_price(auto_list, desc, price):
+                overrides.setdefault(new_cat, {}).setdefault(new_sub, []).append({
+                    "desc": desc,
+                    "price": price,
+                    "origin": "auto",
+                    "orig_cat": src_cat,
+                    "orig_sub": src_sub,
+                })
+                moved_cnt += 1
+    
+        # 2) Обрабатываем перенесённые: moved_overrides -> moved_overrides (orig_* не меняем)
+        moved_list = overrides.get(src_cat, {}).get(src_sub, [])
+        moved_to_keep = []
+        for it in moved_list:
+            # выясняем, выбран ли этот элемент
+            chosen = any(p["src"] == "moved" and p["desc"] == str(it.get("desc","")) and p["price"] == str(it.get("price","")) for p in picks)
+            if chosen:
+                overrides.setdefault(new_cat, {}).setdefault(new_sub, []).append(it)  # переносим как есть
+                moved_cnt += 1
+            else:
+                moved_to_keep.append(it)
+        if moved_list is not None:
+            # обновляем исходный список moved
+            if moved_to_keep:
+                overrides[src_cat][src_sub] = moved_to_keep
+            else:
+                del overrides[src_cat][src_sub]
+                if not overrides.get(src_cat):
+                    del overrides[src_cat]
+    
+        # 3) Обрабатываем ручные: manual -> manual
+        manual_list = manual.get(src_cat, {}).get(src_sub, [])
+        manual_to_keep = []
+        for it in manual_list:
+            chosen = any(p["src"] == "manual" and p["desc"] == str(it.get("desc","")) and p["price"] == str(it.get("price","")) for p in picks)
+            if chosen:
+                manual.setdefault(new_cat, {}).setdefault(new_sub, []).append(it)
+                moved_cnt += 1
+            else:
+                manual_to_keep.append(it)
+        if manual_list is not None:
+            if manual_to_keep:
+                manual[src_cat][src_sub] = manual_to_keep
+            else:
+                if src_cat in manual and src_sub in manual[src_cat]:
+                    del manual[src_cat][src_sub]
+                    if not manual[src_cat]:
+                        del manual[src_cat]
+    
+        # Сохраняем изменения
+        context.application.bot_data["catalog"] = auto_cat
+        _save_catalog_to_disk(auto_cat)
+        context.application.bot_data["moved_overrides"] = overrides
+        _save_moved_overrides(overrides)
+        context.application.bot_data["manual_categories"] = manual
+        _save_manual_categories(manual)
+    
         await query.edit_message_text(
-            f"✅ Перенесено {len(moved)} позиций из *{orig_cat}/{orig_sub}* → *{new_cat}/{new_sub}*",
-            parse_mode=ParseMode.MARKDOWN
+            f"✅ Перенесено позиций: {moved_cnt}\n"
+            f"Из: {src_cat}/{src_sub} → В: {new_cat}/{new_sub}"
         )
-        await show_admin_panel(update, context)
+        # Возврат в новую админ-панель
+        await show_admin_panel(query, context)
         return
 
+    # --- Изменить цены (ручные товары) ---
+    if data == "adminpanel_edit_prices":
+        user_id = query.from_user.id
+        if not is_admin(user_id):
+            await query.answer("Доступ только для администратора.", show_alert=True)
+            return
+
+        manual = context.application.bot_data.get("manual_categories")
+        if manual is None:
+            manual = _load_manual_categories()
+            context.application.bot_data["manual_categories"] = manual
+
+        buttons = []
+        cb_map = {}
+        idx = 0
+        for cat, brands in manual.items():
+            for brand in brands.keys():
+                key = f"manualprice_select|{idx}"
+                cb_map[key] = (cat, brand)
+                buttons.append([InlineKeyboardButton(f"{cat} / {brand}", callback_data=key)])
+                idx += 1
+
+        if not buttons:
+            await query.edit_message_text("Нет вручную добавленных подкатегорий (manual_categories.json).")
+            return
+
+        context.user_data["manualprice_select_map"] = cb_map
+        await query.edit_message_text(
+            "Выберите подкатегорию для изменения цен:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+        return
+    
+    if data.startswith("manualprice_select|"):
+        cb_map = context.user_data.get("manualprice_select_map", {})
+        if data not in cb_map:
+            await query.edit_message_text("Подкатегория не найдена.")
+            return
+
+        cat, brand = cb_map[data]
+        context.user_data["manualprice_cat"] = cat
+        context.user_data["manualprice_brand"] = brand
+        context.user_data["manualprice_step"] = "awaiting_indices"
+
+        manual = context.application.bot_data.get("manual_categories", {}) or _load_manual_categories()
+        items = manual.get(cat, {}).get(brand, [])
+
+        if not items:
+            await query.edit_message_text(f"В {cat} / {brand} товаров нет.")
+            return
+
+        # Нумерованный список
+        lines = ["<b>Текущие товары:</b>"]
+        for i, it in enumerate(items, start=1):
+            d = html.escape(it.get("desc", ""))
+            p = html.escape(str(it.get("price", "")))
+            lines.append(f"{i}. {d} — {p}")
+        lines.append("")
+        lines.append("Введите номера строк для изменения цены (например: 1-3,5):")
+
+        await query.edit_message_text("\n".join(lines), parse_mode=ParseMode.HTML)
+        return
 
     
     # --- Обработка кнопок для управления вручную добавленными категориями ---
@@ -1518,29 +2009,71 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
         markup = InlineKeyboardMarkup(buttons)
         await query.edit_message_text("Выберите категорию/бренд для удаления:", reply_markup=markup)
         return
+    
     if data.startswith("manualcat_del|"):
         cb_map = context.user_data.get("manualcat_del_map", {})
-        # Получаем cat, brand по callback_data
-        if data in cb_map:
-            cat, brand = cb_map[data]
-            manual_cats = context.application.bot_data.get("manual_categories")
-            if manual_cats is None:
-                manual_cats = _load_manual_categories()
-            if cat in manual_cats and brand in manual_cats[cat]:
-                del manual_cats[cat][brand]
-                if not manual_cats[cat]:
-                    del manual_cats[cat]
-                context.application.bot_data["manual_categories"] = manual_cats
-                _save_manual_categories(manual_cats)
-                await query.edit_message_text(f"Удалено: {cat} / {brand}")
-                await show_admin_panel(update, context)
-            else:
-                await query.edit_message_text("Категория/бренд не найдены.")
-        else:
+        if data not in cb_map:
             await query.edit_message_text("Категория/бренд не найдены.")
-        # Очищаем mapping после использования
+            return
+
+        cat, brand = cb_map[data]
+
+        # 1) Удаляем ручную подкатегорию из manual_categories
+        manual_cats = context.application.bot_data.get("manual_categories")
+        if manual_cats is None:
+            manual_cats = _load_manual_categories()
+
+        removed_manual_count = 0
+        if cat in manual_cats and brand in manual_cats[cat]:
+            removed_manual_count = len(manual_cats[cat][brand])
+            del manual_cats[cat][brand]
+            if not manual_cats[cat]:
+                del manual_cats[cat]
+            context.application.bot_data["manual_categories"] = manual_cats
+            _save_manual_categories(manual_cats)
+
+        # 2) Если в этой же подкатегории лежали ПЕРЕНЕСЁННЫЕ товары (moved_overrides) — вернём их в исходные места
+        overrides = context.application.bot_data.get("moved_overrides")
+        if overrides is None:
+            overrides = _load_moved_overrides()
+
+        returned_count = 0
+        if overrides.get(cat, {}).get(brand):
+            moved_items = overrides[cat][brand]
+            catalog = context.application.bot_data.get("catalog") or {}
+
+            for it in moved_items:
+                desc = it.get("desc", "")
+                price = it.get("price", "")
+                o_cat = it.get("orig_cat")
+                o_sub = it.get("orig_sub")
+                if not o_cat or not o_sub:
+                    # на случай старых записей без orig_* — пробуем классифицировать по описанию
+                    o_cat, o_sub = extract_category(desc)
+
+                catalog.setdefault(o_cat, {}).setdefault(o_sub, []).append({"desc": desc, "price": price})
+                returned_count += 1
+
+            # Удаляем перенесённые из этой ручной подкатегории
+            del overrides[cat][brand]
+            if not overrides[cat]:
+                del overrides[cat]
+
+            # Сохраняем обе структуры
+            context.application.bot_data["catalog"] = catalog
+            _save_catalog_to_disk(catalog)
+            context.application.bot_data["moved_overrides"] = overrides
+            _save_moved_overrides(overrides)
+
+        # 3) Ответ и возврат в актуальную админ-панель
+        await query.edit_message_text(
+            f"Удалено: {cat} / {brand}\n"
+            f"Возвращено в исходные категории: {returned_count} поз."
+        )
         context.user_data.pop("manualcat_del_map", None)
+        await show_admin_panel(query, context)
         return
+    
     # --- Обработка кнопок для управления админами ---
     if data == "admin_add":
         context.user_data["awaiting_admin_action"] = "add"
@@ -1881,6 +2414,7 @@ def main() -> None:
 
     # Загружаем вручную добавленные категории с диска
     app.bot_data["manual_categories"] = _load_manual_categories()
+    app.bot_data["moved_overrides"] = _load_moved_overrides()
 
     # Регистрируем обработчики
     app.add_handler(CommandHandler("start", start))
@@ -1889,6 +2423,7 @@ def main() -> None:
     app.add_handler(  CommandHandler("edit_products", edit_products_command) ) 
     app.add_handler(CommandHandler("edit_admins", edit_admins_command))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("about", about_command))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND) & (~filters.Document.ALL), handle_text))
     app.add_handler(CallbackQueryHandler(callback_query_handler))
