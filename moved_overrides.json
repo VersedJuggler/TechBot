@@ -1,10 +1,19 @@
 {
-  "Другое": {
+  "Телефоны": {
     "Общее": [
       {
-        "desc": "Беспроводная аудио система Admiral Levant 60Bт Brown",
-        "price": 12000,
-        "origin": "auto"
+        "desc": "Itel P55+ 8/256Gb Green",
+        "price": 7800,
+        "origin": "auto",
+        "orig_cat": "Другое",
+        "orig_sub": "Общее"
+      },
+      {
+        "desc": "TECNO Pop 7 2/64 Black RU",
+        "price": "4000",
+        "origin": "auto",
+        "orig_cat": "Другое",
+        "orig_sub": "Общее"
       }
     ]
   }

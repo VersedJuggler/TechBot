@@ -1582,41 +1582,97 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         )
         return
 
-    if text == BTN_GET_EXCEL:
+    elif text == BTN_GET_EXCEL:
         import pandas as pd
-        import tempfile
-
+        import tempfile, os
+    
         full_catalog = get_full_catalog(context)
+    
+        # 1) Собираем строки под требуемые столбцы xmlid/description/price
         rows = []
         for cat, subdict in full_catalog.items():
             for sub, items in subdict.items():
                 for item in items:
                     rows.append({
-                        "Категория": cat,
-                        "Бренд": sub,
-                        "Описание": item.get("desc", ""),
-                        "Цена": item.get("price", "")
+                        "xmlid": f"{cat}/{sub}",                          # Категория/Подкатегория
+                        "description": str(item.get("desc", "")),         # Описание
+                        "price": item.get("price", "")                    # Цена (преобразуем ниже в число)
                     })
-
+    
         if not rows:
             await update.message.reply_text("Каталог пуст.")
             return
-
-        df = pd.DataFrame(rows)
+    
+        # 2) DataFrame в нужном порядке столбцов
+        df = pd.DataFrame(rows, columns=["xmlid", "description", "price"])
+    
+        # 3) Приводим price к числовому виду (int), вытаскивая только цифры
+        def _to_int(v):
+            s = str(v)
+            digits = "".join(ch for ch in s if ch.isdigit())
+            return int(digits) if digits else None
+    
+        df["price"] = df["price"].apply(_to_int)
+    
+        # 4) Пишем XLSX: сначала пробуем xlsxwriter (лучший контроль форматов), иначе openpyxl
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
-        df.to_excel(tmp.name, index=False)
+        tmp_path = tmp.name
         tmp.close()
-
+    
         try:
-            await update.message.reply_document(
-                document=open(tmp.name, "rb"),
-                filename="catalog.xlsx"
-            )
+            try:
+                import xlsxwriter  # если установлен — используем
+    
+                with pd.ExcelWriter(tmp_path, engine="xlsxwriter") as writer:
+                    sheet_name = "catalog"
+                    df.to_excel(writer, index=False, sheet_name=sheet_name)
+    
+                    workbook  = writer.book
+                    worksheet = writer.sheets[sheet_name]
+    
+                    # Колонки: 0=xmlid, 1=description, 2=price
+                    # Числовой формат для price: #,##0 (будет выглядеть как 75,000)
+                    price_fmt = workbook.add_format({"num_format": "#,##0"})
+                    worksheet.set_column(0, 0, 24)           # xmlid
+                    worksheet.set_column(1, 1, 48)           # description
+                    worksheet.set_column(2, 2, 12, price_fmt)  # price (с форматом)
+    
+            except ImportError:
+                # Фолбэк: openpyxl — тоже задаём формат #,##0 для столбца price
+                from openpyxl.styles import numbers
+                from openpyxl.utils import get_column_letter
+    
+                with pd.ExcelWriter(tmp_path, engine="openpyxl") as writer:
+                    sheet_name = "catalog"
+                    df.to_excel(writer, index=False, sheet_name=sheet_name)
+                    ws = writer.sheets[sheet_name]
+    
+                    # Ширины столбцов
+                    ws.column_dimensions[get_column_letter(1)].width = 24   # xmlid
+                    ws.column_dimensions[get_column_letter(2)].width = 48   # description
+                    ws.column_dimensions[get_column_letter(3)].width = 12   # price
+    
+                    # Формат для price (колонка C, индекс 3 в 1-based)
+                    price_col = 3
+                    for row in range(2, len(df) + 2):  # начиная со 2-й строки (после заголовков)
+                        cell = ws.cell(row=row, column=price_col)
+                        # Только если там число (None/пустые пропускаем)
+                        if isinstance(cell.value, (int, float)):
+                            cell.number_format = "#,##0"
+    
+            await update.message.reply_document(document=open(tmp_path, "rb"), filename="catalog.xlsx")
+            return
+    
         except Exception as exc:
             await update.message.reply_text(f"Не удалось отправить файл: {exc}")
+            return
+    
         finally:
-            os.remove(tmp.name)
-        return
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+
 
     if text == BTN_SUBSCRIBE:
         subs: set[int] = context.application.bot_data.setdefault("subscribers", set())
@@ -1868,13 +1924,14 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             else:
                 moved_to_keep.append(it)
         if moved_list is not None:
-            # обновляем исходный список moved
-            if moved_to_keep:
-                overrides[src_cat][src_sub] = moved_to_keep
-            else:
-                del overrides[src_cat][src_sub]
-                if not overrides.get(src_cat):
-                    del overrides[src_cat]
+            # обновляем/удаляем исходную ветку только если она существует
+            if src_cat in overrides and src_sub in overrides[src_cat]:
+                if moved_to_keep:
+                    overrides[src_cat][src_sub] = moved_to_keep
+                else:
+                    del overrides[src_cat][src_sub]
+                    if not overrides[src_cat]:
+                        del overrides[src_cat]
     
         # 3) Обрабатываем ручные: manual -> manual
         manual_list = manual.get(src_cat, {}).get(src_sub, [])
